@@ -15,7 +15,7 @@ use std::{path::Path, sync::atomic::AtomicBool};
 mod support;
 
 fn device() -> CudaDevice {
-    let info = ancha::cuda::prepare(0).unwrap();
+    let info = ancha::cuda::prepare(0, "contract-tests").unwrap();
     assert!(info.compute_capability >= 50 && !info.name.is_empty());
     CudaDevice::new(0)
 }

@@ -44,17 +44,30 @@ pub fn probe(index: usize) -> Result<CudaInfo> {
 
 /// Probe the device and, once per process, persist NVRTC PTX per architecture next to
 /// the autotune cache. Without it every process recompiles each kernel on its first
-/// model call. Call before any CUDA tensor operation; a `[compilation] cache` set in
-/// cubecl.toml / Burn.toml is kept as is.
-pub fn prepare(index: usize) -> Result<CudaInfo> {
+/// model call. CubeCL deserializes the whole cache file at start-up (about 1.2 s for
+/// 68 MB), so `scope` (e.g. the model file name) keeps one partition per workload; the
+/// first call in a process fixes it. Call before any CUDA tensor operation; a
+/// `[compilation] cache` set in cubecl.toml / Burn.toml is kept as is.
+pub fn prepare(index: usize, scope: &str) -> Result<CudaInfo> {
     let info = probe(index)?;
     static CACHE_ARCH: OnceLock<i32> = OnceLock::new();
     let arch = *CACHE_ARCH.get_or_init(|| {
         let mut config = CubeClRuntimeConfig::from_current_dir().override_from_env();
         if config.compilation.cache.is_none() {
+            let scope: String = scope
+                .chars()
+                .map(|c| {
+                    if c.is_ascii_alphanumeric() || "._-".contains(c) {
+                        c
+                    } else {
+                        '_'
+                    }
+                })
+                .collect();
             let root = CacheConfig::Target
                 .root()
-                .join(format!("ptx-sm{}", info.compute_capability));
+                .join(format!("ptx-sm{}", info.compute_capability))
+                .join(scope);
             config.compilation.cache = Some(CacheConfig::File(root));
         }
         CubeClRuntimeConfig::set(config);
