@@ -91,14 +91,20 @@ struct SeparateArgs {
     chunk_samples: Option<usize>,
     #[arg(long)]
     overlap: Option<usize>,
-    #[arg(long, default_value_t = 128)]
-    query_tile: usize,
-    #[arg(long, default_value_t = 4)]
-    group_tile: usize,
+    /// Time/frequency attention query tile. Omit both tiles to size them from --max-score-mib.
+    #[arg(long)]
+    query_tile: Option<usize>,
+    /// Attention group tile (bands or frames per score tensor).
+    #[arg(long)]
+    group_tile: Option<usize>,
     /// Experimental alternative projection layout; use bench to compare.
     #[arg(long)]
     flatten_linear: bool,
-    /// Limit attention score workspace, not total GPU memory.
+    /// RoFormer: host threads over independent attention groups (CPU default: all cores; 1 = off).
+    #[arg(long)]
+    host_threads: Option<usize>,
+    /// Limit for concurrently materialized attention scores, also the automatic tile budget;
+    /// not total GPU memory.
     #[arg(long, default_value_t = 512)]
     max_score_mib: usize,
     /// Host PCM limit at both source and output rates (1 hour at 44.1 kHz by default).
@@ -196,7 +202,16 @@ fn run() -> Result<()> {
                 attention: AttentionPlan {
                     query_tile: args.query_tile,
                     group_tile: args.group_tile,
+                    score_budget: args
+                        .max_score_mib
+                        .checked_mul(1 << 20)
+                        .ok_or_else(|| anyhow::anyhow!("score limit overflow"))?,
                     batched_linear: !args.flatten_linear,
+                    host_threads: match (args.backend, args.host_threads) {
+                        (_, Some(n)) => n,
+                        (BackendChoice::Wgpu, None) => 1,
+                        (_, None) => std::thread::available_parallelism().map_or(1, |n| n.get()),
+                    },
                 },
                 max_score_mib: args.max_score_mib,
             };
@@ -246,9 +261,10 @@ fn run() -> Result<()> {
                 tokens,
                 iterations,
                 AttentionPlan {
-                    query_tile,
-                    group_tile,
+                    query_tile: Some(query_tile),
+                    group_tile: Some(group_tile),
                     batched_linear: false,
+                    ..AttentionPlan::default()
                 },
             )?)?;
             if let Some(path) = output {
@@ -329,8 +345,9 @@ fn run_mdx(args: SeparateArgs, cancelled: &AtomicBool) -> Result<()> {
         args.chunk_samples.is_none()
             && args.overlap.is_none()
             && !args.flatten_linear
-            && args.query_tile == 128
-            && args.group_tile == 4,
+            && args.host_threads.is_none()
+            && args.query_tile.is_none()
+            && args.group_tile.is_none(),
         "RoFormer context/attention flags do not apply to MDX; use --mdx-overlap"
     );
     let options = MdxOptions {

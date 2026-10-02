@@ -22,10 +22,20 @@ pub fn tiny_package(directory: &Path, family: Family) -> Manifest {
     c.mask_expansion = 1;
     c.chunk_samples = 4096;
     c.overlap = 2;
+    // Equal widths are not adjacent, exercising grouped band GEMMs and reordering.
     c.bands = if family == Family::BsRoformer {
-        vec![(0..512).collect(), (512..1025).collect()]
+        vec![
+            (0..300).collect(),
+            (300..700).collect(),
+            (700..1000).collect(),
+            (1000..1025).collect(),
+        ]
     } else {
-        vec![(0..800).collect(), (500..1025).collect()]
+        vec![
+            (0..400).collect(),
+            (300..900).collect(),
+            (625..1025).collect(),
+        ]
     };
     if family == Family::MelBandRoformer {
         c.stems = vec!["vocals".into(), "instrumental".into()];
@@ -35,7 +45,7 @@ pub fn tiny_package(directory: &Path, family: Family) -> Manifest {
         let values: Vec<f32> = (0..shape.iter().product())
             .map(|i| {
                 if key.ends_with("gamma") {
-                    1.0
+                    0.75 + (i % 3) as f32 * 0.25
                 } else if key.ends_with("freqs") {
                     if i == 0 { 1.0 } else { 0.01 }
                 } else {

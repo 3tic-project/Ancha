@@ -52,6 +52,12 @@ impl<'a> Weights<'a> {
         shape: [usize; D],
         device: &B::Device,
     ) -> Result<Tensor<B, D>> {
+        let data = self.take(name, &shape)?;
+        Ok(Tensor::from_data(TensorData::new(data, shape), device))
+    }
+
+    /// Checked host copy, for load-time folding before upload.
+    pub fn take(&mut self, name: &str, shape: &[usize]) -> Result<Vec<f32>> {
         let view = self
             .tensors
             .tensor(name)
@@ -76,7 +82,7 @@ impl<'a> Weights<'a> {
             "{name}: non-finite weight"
         );
         self.used.insert(name.into());
-        Ok(Tensor::from_data(TensorData::new(data, shape), device))
+        Ok(data)
     }
 
     pub fn linear<B: Backend>(
@@ -118,5 +124,37 @@ impl<'a> Weights<'a> {
             "unrecognized checkpoint tensors: {unused:?}"
         );
         Ok(self.used.len())
+    }
+}
+
+/// Fold exact load-time scales into a PyTorch `[out, in]` matrix and return
+/// selected output rows as a Burn `[in, out]` Linear:
+/// `W'[i][o] = W[o][i] * input_scale[i] * output_scale`, `b' = b * output_scale`.
+pub fn folded_linear<B: Backend>(
+    weight: &[f32],
+    input: usize,
+    rows: std::ops::Range<usize>,
+    input_scale: &[f32],
+    output_scale: f32,
+    bias: Option<&[f32]>,
+    device: &B::Device,
+) -> Linear<B> {
+    debug_assert_eq!(input_scale.len(), input);
+    let output = rows.len();
+    let mut data = vec![0f32; input * output];
+    for (o, row) in rows.clone().enumerate() {
+        for i in 0..input {
+            data[i * output + o] = weight[row * input + i] * input_scale[i] * output_scale;
+        }
+    }
+    Linear {
+        weight: Param::from_tensor(Tensor::from_data(
+            TensorData::new(data, [input, output]),
+            device,
+        )),
+        bias: bias.map(|b| {
+            let b: Vec<f32> = b[rows].iter().map(|v| v * output_scale).collect();
+            Param::from_tensor(Tensor::from_data(TensorData::new(b, [output]), device))
+        }),
     }
 }

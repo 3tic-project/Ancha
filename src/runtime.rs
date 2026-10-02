@@ -60,13 +60,18 @@ pub fn separate<B: Backend>(
     manifest.validate()?;
     let c = &manifest.config;
     let frames = c.chunk_samples / c.hop + 1;
-    let score_bytes = options
-        .attention
-        .score_bytes(c.bands.len(), frames, c.heads);
+    let attention = options.attention;
+    let bands = c.bands.len();
+    let (group, query, score_bytes) = attention.worker_tiles(bands, frames, c.heads);
+    let time_tiles = (group, query);
+    let (group, query, frequency_score_bytes) = attention.worker_tiles(frames, bands, c.heads);
+    let frequency_tiles = (group, query);
+    let concurrent = (score_bytes * attention.per_worker(bands).0)
+        .max(frequency_score_bytes * attention.per_worker(frames).0);
     ensure!(
-        score_bytes <= options.max_score_mib.saturating_mul(1024 * 1024),
-        "time attention scores need {:.1} MiB, above --max-score-mib; reduce --query-tile or --group-tile",
-        score_bytes as f64 / 1048576.0
+        concurrent <= options.max_score_mib.saturating_mul(1024 * 1024),
+        "concurrent attention scores need {:.1} MiB, above --max-score-mib; reduce tiles or --host-threads",
+        concurrent as f64 / 1048576.0
     );
     let mut timings = Timings::default();
     let timer = Instant::now();
@@ -136,12 +141,13 @@ pub fn separate<B: Backend>(
         let bins = c.n_fft / 2 + 1;
         let frames = spectra[0].frames;
         let rows = bins * 2;
-        let mut packed = vec![0f32; rows * frames * 2];
+        // (frame, bin·2+channel, re/im), the band-split feature order.
+        let mut packed = vec![0f32; frames * rows * 2];
         for (channel, spectrum) in spectra.iter().enumerate() {
             for t in 0..frames {
                 for f in 0..bins {
                     let v = spectrum.data[t * bins + f];
-                    let base = ((f * 2 + channel) * frames + t) * 2;
+                    let base = (t * rows + f * 2 + channel) * 2;
                     packed[base] = v.re;
                     packed[base + 1] = v.im;
                 }
@@ -150,27 +156,31 @@ pub fn separate<B: Backend>(
         timings.stft_seconds += timer.elapsed().as_secs_f64();
         let timer = Instant::now();
         let spectrum =
-            Tensor::<B, 4>::from_data(TensorData::new(packed, [1, rows, frames, 2]), device);
-        let flat: Vec<f32> = model
+            Tensor::<B, 2>::from_data(TensorData::new(packed, [frames, rows * 2]), device);
+        let masks: Vec<f32> = model
             .forward(spectrum, options.attention, cancelled)?
             .into_data()
             .to_vec()
             .map_err(|e| anyhow::anyhow!("read model output: {e:?}"))?;
         ensure!(
-            flat.iter().all(|v| v.is_finite()),
+            masks.iter().all(|v| v.is_finite()),
             "non-finite model output"
         );
-        timings.model_seconds += timer.elapsed().as_secs_f64();
+        let elapsed = timer.elapsed().as_secs_f64();
+        timings.model_seconds += elapsed;
+        timings.model_call_seconds.push(elapsed);
         let timer = Instant::now();
         let mut outputs = Vec::new();
         for stem in 0..c.stems.len() {
             let mut planes = Vec::new();
-            for channel in 0..2 {
+            for (channel, source) in spectra.iter().enumerate() {
                 let mut data = Vec::with_capacity(frames * bins);
                 for t in 0..frames {
                     for f in 0..bins {
-                        let base = (stem * rows * frames + (f * 2 + channel) * frames + t) * 2;
-                        data.push(real_complex(flat[base], flat[base + 1]));
+                        // Masks are [stem, row, re/im, frame].
+                        let base = ((stem * rows + f * 2 + channel) * 2) * frames + t;
+                        let mask = real_complex(masks[base], masks[base + frames]);
+                        data.push(source.data[t * bins + f] * mask);
                     }
                 }
                 planes.push(stft.inverse(
@@ -277,8 +287,17 @@ pub fn separate<B: Backend>(
         chunks: starts.len(),
         profile: profile.into(),
         effective_config: c.clone(),
-        query_tile: options.attention.query_tile,
-        group_tile: options.attention.group_tile,
+        query_tile: time_tiles.1,
+        group_tile: time_tiles.0,
+        frequency_query_tile: frequency_tiles.1,
+        frequency_group_tile: frequency_tiles.0,
+        attention_tiling: if attention.query_tile.is_none() || attention.group_tile.is_none() {
+            "auto"
+        } else {
+            "manual"
+        }
+        .into(),
+        host_threads: attention.host_threads,
         linear_layout: if options.attention.batched_linear {
             "batched"
         } else {
@@ -306,6 +325,7 @@ pub fn separate<B: Backend>(
         .filter_map(|key| std::env::var(key).ok().map(|value| (key.into(), value)))
         .collect(),
         estimated_time_attention_score_bytes: score_bytes,
+        estimated_frequency_attention_score_bytes: frequency_score_bytes,
         residual_reconstruction_max_abs: reconstruction,
         stems: reports,
         rtf: timings.total_seconds / input.seconds(),

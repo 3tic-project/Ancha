@@ -31,9 +31,10 @@ fn synthetic_model_runs_full_pipeline_both_families_and_preserves_native_stems()
             chunk_samples: None,
             overlap: None,
             attention: AttentionPlan {
-                query_tile: 3,
-                group_tile: 2,
+                query_tile: Some(3),
+                group_tile: Some(2),
                 batched_linear: false,
+                ..AttentionPlan::default()
             },
             max_score_mib: 1,
         };
@@ -108,6 +109,47 @@ fn synthetic_model_runs_full_pipeline_both_families_and_preserves_native_stems()
                 .map(|(a, b)| (a - b).abs())
                 .fold(0f32, f32::max);
             assert!(max < 1e-6, "projection layout changed {name}: {max}");
+        }
+        // Flex CPU, concurrent group workers and automatic tiles change only the schedule.
+        let flex_options = SeparateOptions {
+            output: temp.path().join("flex"),
+            attention: AttentionPlan {
+                query_tile: None,
+                group_tile: None,
+                host_threads: 3,
+                ..options.attention
+            },
+            ..options.clone()
+        };
+        let flex = separate::<burn_flex::Flex>(
+            &flex_options,
+            &Default::default(),
+            "cpu-flex",
+            &AtomicBool::new(false),
+            |_, _| {},
+        )
+        .unwrap();
+        assert_eq!(flex.host_threads, 3);
+        assert_eq!(flex.attention_tiling, "auto");
+        for name in ["vocals", "instrumental"] {
+            let reference = decode(
+                &output.join(format!("{name}.wav")),
+                DecodeOptions::default(),
+            )
+            .unwrap();
+            let scheduled = decode(
+                &flex_options.output.join(format!("{name}.wav")),
+                DecodeOptions::default(),
+            )
+            .unwrap();
+            let max = reference
+                .planes
+                .iter()
+                .flatten()
+                .zip(scheduled.planes.iter().flatten())
+                .map(|(a, b)| (a - b).abs())
+                .fold(0f32, f32::max);
+            assert!(max < 1e-5, "Flex/threads/auto tiles changed {name}: {max}");
         }
         assert!(
             separate::<burn::backend::NdArray<f32>>(

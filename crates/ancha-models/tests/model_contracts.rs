@@ -47,9 +47,10 @@ fn tiled_attention_matches_independent_scalar_reference_with_partial_tiles() {
                 tensor(k.clone()),
                 tensor(v.clone()),
                 AttentionPlan {
-                    query_tile: qt,
-                    group_tile: gt,
+                    query_tile: Some(qt),
+                    group_tile: Some(gt),
                     batched_linear: false,
+                    ..AttentionPlan::default()
                 },
             )
             .into_data()
