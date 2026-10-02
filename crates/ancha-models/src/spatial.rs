@@ -118,13 +118,26 @@ impl<B: Backend> Conv<B> {
             groups,
         })
     }
-    pub(crate) fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        conv2d(
-            x,
-            self.weight.clone(),
-            None,
-            ConvOptions::new(self.stride, self.padding, [1, 1], self.groups),
-        )
+    pub(crate) fn forward(&self, x: Tensor<B, 4>, gemm: bool) -> Tensor<B, 4> {
+        let gemm = (gemm && self.groups == 1)
+            .then(|| {
+                conv2d_gemm(
+                    x.clone(),
+                    self.weight.clone(),
+                    None,
+                    self.stride,
+                    self.padding,
+                )
+            })
+            .flatten();
+        gemm.unwrap_or_else(|| {
+            conv2d(
+                x,
+                self.weight.clone(),
+                None,
+                ConvOptions::new(self.stride, self.padding, [1, 1], self.groups),
+            )
+        })
     }
 }
 

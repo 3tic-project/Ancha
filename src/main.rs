@@ -128,7 +128,8 @@ struct SeparateArgs {
     /// MDX only: fixed-shape chunks per forward (1..=4). Increases device memory.
     #[arg(long, default_value_t = 1)]
     mdx_batch_size: usize,
-    /// MDX convolution: `auto` uses patch-gather GEMM on GPUs and Burn conv2d on CPU.
+    /// MDX / HyperACE convolution: `auto` uses patch-gather GEMM for MDX on GPUs and for the
+    /// HyperACE SegmModel on CUDA, Burn conv2d otherwise.
     #[arg(long, value_enum, default_value = "auto")]
     conv_strategy: ConvStrategy,
 }
@@ -214,8 +215,7 @@ fn run() -> Result<()> {
                 !args.mdx_denoise
                     && args.mdx_overlap.is_none()
                     && !args.mdx_no_optimize
-                    && args.mdx_batch_size == 1
-                    && args.conv_strategy == ConvStrategy::Auto,
+                    && args.mdx_batch_size == 1,
                 "MDX flags require an ONNX model"
             );
             let options = SeparateOptions {
@@ -248,6 +248,11 @@ fn run() -> Result<()> {
                         (_, Some(n)) => n,
                         (BackendChoice::Wgpu | BackendChoice::Cuda, None) => 1,
                         (_, None) => std::thread::available_parallelism().map_or(1, |n| n.get()),
+                    },
+                    conv_gemm: match args.conv_strategy {
+                        ConvStrategy::Auto => matches!(args.backend, BackendChoice::Cuda),
+                        ConvStrategy::Gemm => true,
+                        ConvStrategy::Backend => false,
                     },
                 },
                 max_score_mib: args.max_score_mib,

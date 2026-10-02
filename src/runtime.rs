@@ -6,7 +6,9 @@ use ancha_audio::{
     decode::{DecodeOptions, decode},
     dsp::{Spectrum, Stft, reflect_index},
 };
-use ancha_models::{network::Roformer, roformer::AttentionPlan, weights::read_manifest};
+use ancha_models::{
+    config::Family, network::Roformer, roformer::AttentionPlan, weights::read_manifest,
+};
 use anyhow::{Context, Result, ensure};
 use burn::tensor::{Tensor, TensorData, backend::Backend};
 use sha2::{Digest, Sha256};
@@ -301,6 +303,14 @@ pub fn separate<B: Backend>(
         }
         .into(),
         host_threads: attention.host_threads,
+        conv_strategy: (c.family == Family::HyperaceV2).then(|| {
+            if attention.conv_gemm {
+                "gemm"
+            } else {
+                "backend"
+            }
+            .into()
+        }),
         linear_layout: if options.attention.batched_linear {
             "batched"
         } else {

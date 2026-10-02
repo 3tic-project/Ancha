@@ -22,8 +22,8 @@ impl<B: Backend> Cn<B> {
             norm: InstanceNorm::load(w, &format!("{p}.bn"), co, d)?,
         })
     }
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        silu(self.norm.forward(self.conv.forward(x)))
+    fn forward(&self, x: Tensor<B, 4>, gemm: bool) -> Tensor<B, 4> {
+        silu(self.norm.forward(self.conv.forward(x, gemm)))
     }
 }
 struct Ds<B: Backend> {
@@ -46,8 +46,11 @@ impl<B: Backend> Ds<B> {
             norm: InstanceNorm::load(w, &format!("{p}.bn"), co, d)?,
         })
     }
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        silu(self.norm.forward(self.pw.forward(self.dw.forward(x))))
+    fn forward(&self, x: Tensor<B, 4>, gemm: bool) -> Tensor<B, 4> {
+        silu(
+            self.norm
+                .forward(self.pw.forward(self.dw.forward(x, gemm), gemm)),
+        )
     }
 }
 struct C3<B: Backend> {
@@ -72,12 +75,13 @@ impl<B: Backend> C3<B> {
             blocks,
         })
     }
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        let mut a = self.a.forward(x.clone());
+    fn forward(&self, x: Tensor<B, 4>, gemm: bool) -> Tensor<B, 4> {
+        let mut a = self.a.forward(x.clone(), gemm);
         for (first, second) in &self.blocks {
-            a = a.clone() + second.forward(first.forward(a));
+            a = a.clone() + second.forward(first.forward(a, gemm), gemm);
         }
-        self.out.forward(Tensor::cat(vec![a, self.b.forward(x)], 1))
+        self.out
+            .forward(Tensor::cat(vec![a, self.b.forward(x, gemm)], 1), gemm)
     }
 }
 struct C32<B: Backend> {
@@ -101,8 +105,9 @@ impl<B: Backend> C32<B> {
             out: Cn::load(w, &format!("{p}.cv2"), c, co, d)?,
         })
     }
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        self.out.forward(self.mid.forward(self.a.forward(x)))
+    fn forward(&self, x: Tensor<B, 4>, gemm: bool) -> Tensor<B, 4> {
+        self.out
+            .forward(self.mid.forward(self.a.forward(x, gemm), gemm), gemm)
     }
 }
 struct Graph<B: Backend> {
@@ -131,9 +136,9 @@ impl<B: Backend> Graph<B> {
             vertex: w.linear(&format!("{p}.ahc.hypergraph_conv.W_v"), 256, 256, false, d)?,
         })
     }
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        let lateral = self.a.forward(x.clone());
-        let z = self.b.forward(x);
+    fn forward(&self, x: Tensor<B, 4>, gemm: bool) -> Tensor<B, 4> {
+        let lateral = self.a.forward(x.clone(), gemm);
+        let z = self.b.forward(x, gemm);
         let [b, c, h, w] = z.dims();
         let n = h * w;
         let z = z.reshape([b, c, n]).swap_dims(1, 2);
@@ -155,10 +160,10 @@ impl<B: Backend> Graph<B> {
         );
         let edges = silu(self.edge.forward(incidence.clone().matmul(z.clone())));
         let z = z + silu(self.vertex.forward(incidence.swap_dims(1, 2).matmul(edges)));
-        self.out.forward(Tensor::cat(
-            vec![z.swap_dims(1, 2).reshape([b, c, h, w]), lateral],
-            1,
-        ))
+        self.out.forward(
+            Tensor::cat(vec![z.swap_dims(1, 2).reshape([b, c, h, w]), lateral], 1),
+            gemm,
+        )
     }
 }
 struct Tfc<B: Backend> {
@@ -186,12 +191,12 @@ impl<B: Backend> Tfc<B> {
             skip: Conv::load(w, &format!("{p}.shortcut"), [c, c], 1, [1, 1], 1, d)?,
         })
     }
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        let skip = self.skip.forward(x.clone());
-        let x = self.c1.forward(silu(self.n1.forward(x)));
+    fn forward(&self, x: Tensor<B, 4>, gemm: bool) -> Tensor<B, 4> {
+        let skip = self.skip.forward(x.clone(), gemm);
+        let x = self.c1.forward(silu(self.n1.forward(x)), gemm);
         let t = self.l1.forward(silu(self.nt1.forward(x.clone())));
         let t = self.l2.forward(silu(self.nt2.forward(t)));
-        self.c2.forward(silu(self.n2.forward(x + t))) + skip
+        self.c2.forward(silu(self.n2.forward(x + t)), gemm) + skip
     }
 }
 struct Up<B: Backend> {
@@ -214,10 +219,10 @@ impl<B: Backend> Up<B> {
                 .collect::<Result<_>>()?,
         })
     }
-    fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
-        let mut x = frequency_shuffle(self.conv.forward(x), 2);
+    fn forward(&self, x: Tensor<B, 4>, gemm: bool) -> Tensor<B, 4> {
+        let mut x = frequency_shuffle(self.conv.forward(x, gemm), 2);
         for block in &self.tdf {
-            x = block.forward(x);
+            x = block.forward(x, gemm);
         }
         x
     }
@@ -327,48 +332,62 @@ impl<B: Backend> Segm<B> {
             )?,
         })
     }
-    pub(crate) fn forward(&self, x: Tensor<B, 4>, cancelled: &AtomicBool) -> Result<Tensor<B, 4>> {
+    pub(crate) fn forward(
+        &self,
+        x: Tensor<B, 4>,
+        gemm: bool,
+        cancelled: &AtomicBool,
+    ) -> Result<Tensor<B, 4>> {
         let height = x.dims()[2];
-        let mut x = self.stem.forward(x);
+        let mut x = self.stem.forward(x, gemm);
         let mut enc = Vec::new();
         for (ds, c3) in &self.encoder {
             ensure!(!cancelled.load(Ordering::Relaxed), "task cancelled");
-            x = c3.forward(ds.forward(x));
+            x = c3.forward(ds.forward(x, gemm), gemm);
             enc.push(x.clone());
         }
         let size = [enc[2].dims()[2], enc[2].dims()[3]];
-        let fused = self.fuse.forward(Tensor::cat(
-            enc.iter().map(|x| resize(x.clone(), size)).collect(),
-            1,
-        ));
+        let fused = self.fuse.forward(
+            Tensor::cat(enc.iter().map(|x| resize(x.clone(), size)).collect(), 1),
+            gemm,
+        );
         let high = fused.clone().narrow(1, 0, 256);
         let low = fused.clone().narrow(1, 256, 128);
         let skip = fused.narrow(1, 384, 128);
-        let high = self.high_fuse.forward(Tensor::cat(
-            self.high.iter().map(|m| m.forward(high.clone())).collect(),
-            1,
-        ));
-        let h = self
-            .final_fuse
-            .forward(Tensor::cat(vec![high, self.low.forward(low), skip], 1));
-        let mut decoded = self.skips[3].forward(enc[3].clone());
+        let high = self.high_fuse.forward(
+            Tensor::cat(
+                self.high
+                    .iter()
+                    .map(|m| m.forward(high.clone(), gemm))
+                    .collect(),
+                1,
+            ),
+            gemm,
+        );
+        let h = self.final_fuse.forward(
+            Tensor::cat(vec![high, self.low.forward(low, gemm), skip], 1),
+            gemm,
+        );
+        let mut decoded = self.skips[3].forward(enc[3].clone(), gemm);
         for i in (0..4).rev() {
             let size = [decoded.dims()[2], decoded.dims()[3]];
-            decoded =
-                decoded + self.gammas[i].clone() * self.h_maps[i].forward(resize(h.clone(), size));
+            decoded = decoded
+                + self.gammas[i].clone() * self.h_maps[i].forward(resize(h.clone(), size), gemm);
             if i > 0 {
                 let size = [enc[i - 1].dims()[2], enc[i - 1].dims()[3]];
-                decoded = self.decoder[i - 1].forward(resize(decoded, size))
-                    + self.skips[i - 1].forward(enc[i - 1].clone());
+                decoded = self.decoder[i - 1].forward(resize(decoded, size), gemm)
+                    + self.skips[i - 1].forward(enc[i - 1].clone(), gemm);
             }
         }
-        decoded = self.final_decoder.forward(decoded);
+        decoded = self.final_decoder.forward(decoded, gemm);
         let width = decoded.dims()[3];
         decoded = resize(decoded, [height, width]);
         for up in &self.up {
             ensure!(!cancelled.load(Ordering::Relaxed), "task cancelled");
-            decoded = up.forward(decoded);
+            decoded = up.forward(decoded, gemm);
         }
-        Ok(self.final_conv.forward(resize(decoded, [height, 1025])))
+        Ok(self
+            .final_conv
+            .forward(resize(decoded, [height, 1025]), gemm))
     }
 }

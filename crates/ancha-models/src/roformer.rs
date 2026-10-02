@@ -73,6 +73,8 @@ pub struct AttentionPlan {
     /// CPU only: run independent sequence groups of each axis transformer on this many
     /// host threads. Burn CPU element-wise kernels are single-threaded; 1 disables.
     pub host_threads: usize,
+    /// HyperACE: ungrouped SegmModel convolutions as patch gather + GEMM.
+    pub conv_gemm: bool,
 }
 impl AttentionPlan {
     pub fn validate(self) -> Result<()> {
@@ -129,6 +131,7 @@ impl Default for AttentionPlan {
             score_budget: 512 << 20,
             batched_linear: true,
             host_threads: 1,
+            conv_gemm: false,
         }
     }
 }

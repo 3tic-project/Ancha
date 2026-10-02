@@ -343,7 +343,11 @@ impl<B: Backend> Roformer<B> {
         let spatial = match &self.segmentation {
             Some(segm) => {
                 ensure!(!cancelled.load(Ordering::Relaxed), "task cancelled");
-                let s = segm.forward(x.clone().permute([2, 1, 0]).unsqueeze_dim(0), cancelled)?;
+                let s = segm.forward(
+                    x.clone().permute([2, 1, 0]).unsqueeze_dim(0),
+                    plan.conv_gemm,
+                    cancelled,
+                )?;
                 // Channels are (stereo, re/im); rows follow (bin, stereo).
                 Some(
                     s.reshape([2, 2, t, bins])
