@@ -366,8 +366,10 @@ fn cuda_device(index: usize, scope: &std::path::Path) -> Result<burn::backend::c
     let scope = scope.file_name().unwrap_or_default().to_string_lossy();
     let info = ancha::cuda::prepare(index, &scope)?;
     eprintln!(
-        "CUDA device {index}: {} (sm_{})",
-        info.name, info.compute_capability
+        "CUDA device {index}: {} (sm_{}, {:.1} GiB)",
+        info.name,
+        info.compute_capability,
+        info.total_memory_bytes as f64 / (1u64 << 30) as f64
     );
     Ok(burn::backend::cuda::CudaDevice::new(index))
 }

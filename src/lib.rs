@@ -2,6 +2,7 @@
 pub mod benchmark;
 #[cfg(feature = "cuda")]
 pub mod cuda;
+pub mod device;
 #[cfg(feature = "onnx")]
 pub mod mdx_runtime;
 pub mod report;

@@ -38,6 +38,7 @@ pub fn separate<B: Backend>(
     mut progress: impl FnMut(usize, usize),
 ) -> Result<RunReport> {
     let total_start = Instant::now();
+    crate::device::install_guard();
     ensure!(!cancelled.load(Ordering::Relaxed), "task cancelled");
     ensure!(
         !options.output.exists(),
@@ -92,6 +93,7 @@ pub fn separate<B: Backend>(
     let timer = Instant::now();
     let model = Roformer::<B>::load(&options.model, &manifest, device)?;
     B::sync(device).map_err(|e| anyhow::anyhow!("device synchronization: {e:?}"))?;
+    crate::device::check()?;
     timings.model_load_seconds = timer.elapsed().as_secs_f64();
     let plan = ChunkPlan::new(c.chunk_samples, c.overlap)?;
     let border = c.chunk_samples - plan.step;
@@ -162,6 +164,7 @@ pub fn separate<B: Backend>(
             .into_data()
             .to_vec()
             .map_err(|e| anyhow::anyhow!("read model output: {e:?}"))?;
+        crate::device::check()?;
         ensure!(
             masks.iter().all(|v| v.is_finite()),
             "non-finite model output"

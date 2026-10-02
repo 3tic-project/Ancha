@@ -145,6 +145,7 @@ pub fn separate_mdx<B: Backend>(
     mut progress: impl FnMut(usize, usize),
 ) -> Result<MdxReport> {
     let total = Instant::now();
+    crate::device::install_guard();
     ensure!(!o.output.exists(), "output already exists");
     ensure!(!cancelled.load(Ordering::Relaxed), "task cancelled");
     ensure!(
@@ -161,6 +162,7 @@ pub fn separate_mdx<B: Backend>(
     let timer = Instant::now();
     let model = Mdx::<B>::load(&o.model, o.optimized, d)?;
     B::sync(d).map_err(|e| anyhow::anyhow!("device synchronization: {e:?}"))?;
+    crate::device::check()?;
     timings.model_load_seconds = timer.elapsed().as_secs_f64();
     let c = &model.config;
     let timer = Instant::now();
@@ -248,6 +250,7 @@ pub fn separate_mdx<B: Backend>(
             "MDX output shape mismatch"
         );
         let flat = y.into_data().to_vec::<f32>()?;
+        crate::device::check()?;
         let elapsed = timer.elapsed().as_secs_f64();
         timings.model_seconds += elapsed;
         timings.model_call_seconds.push(elapsed);

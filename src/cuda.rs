@@ -11,6 +11,7 @@ pub struct CudaInfo {
     pub name: String,
     /// Compute capability as `major * 10 + minor`, e.g. 61 for sm_61.
     pub compute_capability: i32,
+    pub total_memory_bytes: usize,
 }
 
 /// Validate the device ordinal before CubeCL starts its server, which panics on
@@ -27,11 +28,12 @@ pub fn probe(index: usize) -> Result<CudaInfo> {
     let device = result::device::get(index as i32).context("CUDA device handle")?;
     let name = result::device::get_name(device).context("CUDA device name")?;
     // SAFETY: `device` is a valid handle from `device::get`; attributes are read-only queries.
-    let (major, minor) = unsafe {
+    let (major, minor, memory) = unsafe {
         use CUdevice_attribute::*;
         (
             result::device::get_attribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR),
             result::device::get_attribute(device, CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR),
+            result::device::total_mem(device),
         )
     };
     Ok(CudaInfo {
@@ -39,6 +41,7 @@ pub fn probe(index: usize) -> Result<CudaInfo> {
         name,
         compute_capability: major.context("CUDA compute capability")? * 10
             + minor.context("CUDA compute capability")?,
+        total_memory_bytes: memory.context("CUDA device memory")?,
     })
 }
 
