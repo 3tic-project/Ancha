@@ -55,6 +55,14 @@ cudarc = { version = "0.19.10", default-features = false, features = ["std", "dr
 tempfile = "3"
 safetensors = "=0.8.0"
 
+[[example]]
+name = "separate"
+required-features = ["onnx"]
+
+[[example]]
+name = "separate_all"
+required-features = ["onnx"]
+
 [profile.release]
 opt-level = 3
 lto = false

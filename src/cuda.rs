@@ -45,6 +45,20 @@ pub fn probe(index: usize) -> Result<CudaInfo> {
     })
 }
 
+/// Device-wide `(free, total)` bytes from the driver. CubeCL keeps its memory pools, so after
+/// a task this is the memory it still holds, not a profiler peak.
+pub fn memory_info(index: usize) -> Result<(usize, usize)> {
+    let device = result::device::get(index as i32).context("CUDA device handle")?;
+    // SAFETY: the primary context is retained, made current for one read-only query, released.
+    unsafe {
+        let context = result::primary_ctx::retain(device).context("CUDA primary context")?;
+        result::ctx::set_current(context).context("CUDA set context")?;
+        let info = result::mem_get_info().context("CUDA memory info");
+        result::primary_ctx::release(device).context("CUDA release context")?;
+        info
+    }
+}
+
 /// Probe the device and, once per process, persist NVRTC PTX per architecture next to
 /// the autotune cache. Without it every process recompiles each kernel on its first
 /// model call. CubeCL deserializes the whole cache file at start-up (about 1.2 s for
