@@ -99,8 +99,12 @@ struct SeparateArgs {
     /// Attention group tile (bands or frames per score tensor).
     #[arg(long)]
     group_tile: Option<usize>,
-    /// Experimental alternative projection layout; use bench to compare.
-    #[arg(long)]
+    /// RoFormer projection layout: `auto` folds rows into one GEMM on CUDA, where it
+    /// measured faster, and keeps batched projections on other backends.
+    #[arg(long, value_enum, default_value = "auto")]
+    linear_layout: LinearLayout,
+    /// Same as `--linear-layout flattened`.
+    #[arg(long, conflicts_with = "linear_layout")]
     flatten_linear: bool,
     /// RoFormer: host threads over independent attention groups (CPU default: all cores; 1 = off).
     #[arg(long)]
@@ -124,7 +128,7 @@ struct SeparateArgs {
     /// MDX only: fixed-shape chunks per forward (1..=4). Increases device memory.
     #[arg(long, default_value_t = 1)]
     mdx_batch_size: usize,
-    /// MDX convolution: `auto` uses patch-gather GEMM on WGPU and Burn conv2d on CPU.
+    /// MDX convolution: `auto` uses patch-gather GEMM on GPUs and Burn conv2d on CPU.
     #[arg(long, value_enum, default_value = "auto")]
     conv_strategy: ConvStrategy,
 }
@@ -133,6 +137,12 @@ enum ConvStrategy {
     Auto,
     Gemm,
     Backend,
+}
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum LinearLayout {
+    Auto,
+    Batched,
+    Flattened,
 }
 
 fn main() {
@@ -229,7 +239,11 @@ fn run() -> Result<()> {
                         .max_score_mib
                         .checked_mul(1 << 20)
                         .ok_or_else(|| anyhow::anyhow!("score limit overflow"))?,
-                    batched_linear: !args.flatten_linear,
+                    batched_linear: match (args.flatten_linear, args.linear_layout) {
+                        (true, _) | (_, LinearLayout::Flattened) => false,
+                        (_, LinearLayout::Batched) => true,
+                        (_, LinearLayout::Auto) => !matches!(args.backend, BackendChoice::Cuda),
+                    },
                     host_threads: match (args.backend, args.host_threads) {
                         (_, Some(n)) => n,
                         (BackendChoice::Wgpu | BackendChoice::Cuda, None) => 1,
@@ -397,6 +411,7 @@ fn run_mdx(args: SeparateArgs, cancelled: &AtomicBool) -> Result<()> {
         args.chunk_samples.is_none()
             && args.overlap.is_none()
             && !args.flatten_linear
+            && args.linear_layout == LinearLayout::Auto
             && args.host_threads.is_none()
             && args.query_tile.is_none()
             && args.group_tile.is_none(),
