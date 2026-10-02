@@ -25,7 +25,8 @@ description = "Native Rust RoFormer audio separation CLI and SDK"
 publish = false
 
 [features]
-default = []
+# CPU (Flex + optimized NdArray), WGPU and MDX ONNX; add `cuda` for NVIDIA GPUs.
+default = ["wgpu", "onnx", "cpu-opt"]
 wgpu = ["ancha-models/wgpu", "burn/wgpu", "burn/fusion", "burn/autotune"]
 cuda = ["ancha-models/cuda", "burn/cuda", "burn/fusion", "burn/autotune", "burn/cubecl", "dep:cudarc"]
 accelerate = ["burn/accelerate"]
