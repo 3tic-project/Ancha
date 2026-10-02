@@ -23,6 +23,22 @@ pub fn sha256_file(path: &Path) -> Result<String> {
     Ok(format!("{:x}", hash.finalize()))
 }
 
+/// Run `build` over `bytes` while their SHA-256 is computed on another thread, and
+/// return its result only if the digest matches. On CPUs without SHA extensions hashing
+/// an 830 MB package takes about 5 s, longer than parsing and uploading it.
+pub fn verified<T>(bytes: &[u8], expected: &str, build: impl FnOnce() -> Result<T>) -> Result<T> {
+    let (digest, built) = std::thread::scope(|scope| {
+        let hasher = scope.spawn(|| format!("{:x}", Sha256::digest(bytes)));
+        let built = build();
+        (
+            hasher.join().expect("weight hashing thread panicked"),
+            built,
+        )
+    });
+    ensure!(digest == expected, "model checksum mismatch");
+    built
+}
+
 pub fn read_manifest(package: &Path) -> Result<Manifest> {
     let path = package.join("manifest.json");
     let m: Manifest = serde_json::from_slice(

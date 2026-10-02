@@ -180,6 +180,21 @@ fn synthetic_model_runs_full_pipeline_both_families_and_preserves_native_stems()
 }
 
 #[test]
+fn model_loading_rejects_weights_that_do_not_match_the_manifest_digest() {
+    use ancha_models::{config::Family, network::Roformer};
+    let temp = tempfile::tempdir().unwrap();
+    let model = temp.path().join("model");
+    let mut manifest = support::tiny_package(&model, Family::BsRoformer);
+    Roformer::<burn_flex::Flex>::load(&model, &manifest, &Default::default()).unwrap();
+    manifest.weights_sha256 = "0".repeat(64);
+    let error = Roformer::<burn_flex::Flex>::load(&model, &manifest, &Default::default())
+        .err()
+        .unwrap()
+        .to_string();
+    assert!(error.contains("checksum mismatch"), "{error}");
+}
+
+#[test]
 fn residual_keeps_channel_order_and_reconstructs_unclipped_mixture() {
     let source = Audio {
         sample_rate: 44100,

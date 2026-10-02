@@ -4,7 +4,7 @@ use crate::{
     roformer::{AttentionPlan, AxisRope, SourceNorm, Transformer, dense, unit_norm},
     weights::{self, Weights},
 };
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use burn::tensor::{
     IndexingUpdateOp, Int, Tensor, TensorData,
     activation::{sigmoid, tanh},
@@ -80,12 +80,14 @@ impl<B: Backend> Roformer<B> {
     pub fn load(package: &Path, manifest: &Manifest, device: &B::Device) -> Result<Self> {
         manifest.validate()?;
         let path = package.join("model.safetensors");
-        ensure!(
-            weights::sha256_file(&path)? == manifest.weights_sha256,
-            "model checksum mismatch"
-        );
-        let bytes = std::fs::read(path)?;
-        let mut w = Weights::new(&bytes)?;
+        let bytes = std::fs::read(&path).with_context(|| format!("read {}", path.display()))?;
+        weights::verified(&bytes, &manifest.weights_sha256, || {
+            Self::build(&bytes, manifest, device)
+        })
+    }
+
+    fn build(bytes: &[u8], manifest: &Manifest, device: &B::Device) -> Result<Self> {
+        let mut w = Weights::new(bytes)?;
         let c = &manifest.config;
         let nb = c.bands.len();
         let mut width_groups: Vec<(usize, Vec<usize>)> = Vec::new();
