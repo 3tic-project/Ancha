@@ -29,6 +29,8 @@ pub struct MdxOptions {
     pub denoise: bool,
     pub optimized: bool,
     pub batch_size: usize,
+    /// Ungrouped convolutions as patch gather + GEMM (GPU default).
+    pub conv_gemm: bool,
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MdxReport {
@@ -60,6 +62,9 @@ pub struct MdxReport {
     pub denoise: bool,
     pub optimized: bool,
     pub batch_size: usize,
+    /// `gemm` (patch gather + GEMM) or `backend` (Burn conv2d).
+    #[serde(default)]
+    pub conv_strategy: String,
     pub graph_nodes: usize,
     pub folded_bn: usize,
     pub chunks: usize,
@@ -228,20 +233,24 @@ pub fn separate_mdx<B: Backend>(
             d,
         );
         let y = if o.denoise {
-            let negative = model.graph.forward(x.clone().neg(), cancelled)?;
-            let positive = model.graph.forward(x, cancelled)?;
+            let negative = model
+                .graph
+                .forward(x.clone().neg(), o.conv_gemm, cancelled)?;
+            let positive = model.graph.forward(x, o.conv_gemm, cancelled)?;
             forwards += 2;
             (positive - negative) * 0.5
         } else {
             forwards += 1;
-            model.graph.forward(x, cancelled)?
+            model.graph.forward(x, o.conv_gemm, cancelled)?
         };
         ensure!(
             y.dims() == [batch.len(), 4, c.bins, c.frames],
             "MDX output shape mismatch"
         );
         let flat = y.into_data().to_vec::<f32>()?;
-        timings.model_seconds += timer.elapsed().as_secs_f64();
+        let elapsed = timer.elapsed().as_secs_f64();
+        timings.model_seconds += elapsed;
+        timings.model_call_seconds.push(elapsed);
         for (local_batch, &start) in batch.iter().enumerate() {
             let timer = Instant::now();
             let audio = unpack(
@@ -388,6 +397,7 @@ pub fn separate_mdx<B: Backend>(
         denoise: o.denoise,
         optimized: o.optimized,
         batch_size: o.batch_size,
+        conv_strategy: if o.conv_gemm { "gemm" } else { "backend" }.into(),
         graph_nodes: model.graph.nodes,
         folded_bn: model.graph.folded_bn,
         chunks: starts.len(),

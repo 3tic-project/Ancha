@@ -1,12 +1,60 @@
 use ancha_models::{
     config::ModelConfig,
-    spatial::{InstanceNorm, frequency_shuffle, resize},
+    spatial::{InstanceNorm, conv2d_gemm, frequency_shuffle, resize},
 };
 use burn::{
     backend::NdArray,
-    tensor::{Tensor, TensorData},
+    tensor::{Tensor, TensorData, module::conv2d, ops::ConvOptions},
 };
 type B = NdArray<f32>;
+#[test]
+fn gemm_convolution_matches_backend_conv_for_padded_strided_and_pointwise_kernels() {
+    let d = Default::default();
+    let values = |n: usize, s: f32| {
+        (0..n)
+            .map(|i| (i as f32 * 0.37 + s).sin())
+            .collect::<Vec<_>>()
+    };
+    // (in, out, kernel, stride, padding, height, width), including odd sizes and batch 2.
+    for (ci, co, k, s, p, h, w) in [
+        (3, 4, 3, 1, 1, 5, 7),
+        (2, 3, 2, 2, 0, 6, 9),
+        (4, 2, 1, 1, 0, 3, 5),
+        (2, 2, 3, 1, 0, 4, 6),
+        (3, 2, 3, 2, 1, 7, 8),
+    ] {
+        let x = Tensor::<B, 4>::from_data(
+            TensorData::new(values(2 * ci * h * w, 0.3), [2, ci, h, w]),
+            &d,
+        );
+        let weight = Tensor::<B, 4>::from_data(
+            TensorData::new(values(co * ci * k * k, 1.1), [co, ci, k, k]),
+            &d,
+        );
+        let bias = Tensor::<B, 1>::from_data(TensorData::new(values(co, 2.0), [co]), &d);
+        let expected: Vec<f32> = conv2d(
+            x.clone(),
+            weight.clone(),
+            Some(bias.clone()),
+            ConvOptions::new([s, s], [p, p], [1, 1], 1),
+        )
+        .into_data()
+        .to_vec()
+        .unwrap();
+        let actual = conv2d_gemm(x, weight, Some(bias), [s, s], [p, p]).unwrap();
+        let actual: Vec<f32> = actual.into_data().to_vec().unwrap();
+        assert_eq!(actual.len(), expected.len());
+        assert!(
+            actual
+                .iter()
+                .zip(&expected)
+                .all(|(a, b)| (a - b).abs() < 1e-5)
+        );
+    }
+    let x = Tensor::<B, 4>::zeros([1, 3, 5, 5], &d);
+    let weight = Tensor::<B, 4>::zeros([2, 2, 3, 3], &d);
+    assert!(conv2d_gemm(x, weight, None, [1, 1], [1, 1]).is_none());
+}
 #[test]
 fn instance_norm_uses_spatial_biased_variance_and_input_statistics() {
     let d = Default::default();

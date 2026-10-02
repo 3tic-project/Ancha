@@ -50,6 +50,7 @@ fn mdx_invalid_overlap_and_cancellation_publish_no_outputs() {
         denoise: false,
         optimized: true,
         batch_size: 1,
+        conv_gemm: false,
     };
     assert!(
         separate_mdx::<NdArray<f32>>(

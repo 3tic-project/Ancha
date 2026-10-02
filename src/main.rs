@@ -122,6 +122,15 @@ struct SeparateArgs {
     /// MDX only: fixed-shape chunks per forward (1..=4). Increases device memory.
     #[arg(long, default_value_t = 1)]
     mdx_batch_size: usize,
+    /// MDX convolution: `auto` uses patch-gather GEMM on WGPU and Burn conv2d on CPU.
+    #[arg(long, value_enum, default_value = "auto")]
+    conv_strategy: ConvStrategy,
+}
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum ConvStrategy {
+    Auto,
+    Gemm,
+    Backend,
 }
 
 fn main() {
@@ -182,7 +191,8 @@ fn run() -> Result<()> {
                 !args.mdx_denoise
                     && args.mdx_overlap.is_none()
                     && !args.mdx_no_optimize
-                    && args.mdx_batch_size == 1,
+                    && args.mdx_batch_size == 1
+                    && args.conv_strategy == ConvStrategy::Auto,
                 "MDX flags require an ONNX model"
             );
             let options = SeparateOptions {
@@ -366,6 +376,11 @@ fn run_mdx(args: SeparateArgs, cancelled: &AtomicBool) -> Result<()> {
         denoise: args.mdx_denoise,
         optimized: !args.mdx_no_optimize,
         batch_size: args.mdx_batch_size,
+        conv_gemm: match args.conv_strategy {
+            ConvStrategy::Auto => matches!(args.backend, BackendChoice::Wgpu),
+            ConvStrategy::Gemm => true,
+            ConvStrategy::Backend => false,
+        },
     };
     let progress = |n, total| eprintln!("separated MDX chunk {n}/{total}");
     let report = match args.backend {

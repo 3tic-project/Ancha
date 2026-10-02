@@ -2,12 +2,62 @@
 use crate::weights::Weights;
 use anyhow::Result;
 use burn::tensor::{
-    Int, Tensor, TensorData, activation::sigmoid, backend::Backend, module::conv2d,
-    ops::ConvOptions,
+    Int, Tensor, TensorData,
+    activation::sigmoid,
+    backend::Backend,
+    module::conv2d,
+    ops::{ConvOptions, PadMode},
 };
 
 pub(crate) fn silu<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> {
     x.clone() * sigmoid(x)
+}
+
+/// Ungrouped, undilated 2-D convolution as a patch gather plus one GEMM.
+/// Without cooperative-matrix units CubeCL runs direct convolution, several times
+/// slower than its tuned GEMM; the arithmetic is the same sum of products.
+/// Returns `None` when the weight and input disagree so callers keep the backend path.
+pub fn conv2d_gemm<B: Backend>(
+    x: Tensor<B, 4>,
+    weight: Tensor<B, 4>,
+    bias: Option<Tensor<B, 1>>,
+    stride: [usize; 2],
+    padding: [usize; 2],
+) -> Option<Tensor<B, 4>> {
+    let [b, c, h, w] = x.dims();
+    let [o, ci, kh, kw] = weight.dims();
+    if c != ci || h + 2 * padding[0] < kh || w + 2 * padding[1] < kw {
+        return None;
+    }
+    if b > 1 {
+        // One patch matrix at a time: a 3×3 layer expands its input 9×, and several
+        // batch items at once exceeded 8 GB devices in practice.
+        let items = (0..b)
+            .map(|i| {
+                let item = x.clone().narrow(0, i, 1);
+                conv2d_gemm(item, weight.clone(), bias.clone(), stride, padding)
+            })
+            .collect::<Option<Vec<_>>>()?;
+        return Some(Tensor::cat(items, 0));
+    }
+    let k = c * kh * kw;
+    let x = if padding == [0, 0] {
+        x
+    } else {
+        let [ph, pw] = padding;
+        x.pad([(ph, ph), (pw, pw)], PadMode::Constant(0.0))
+    };
+    // Sliding windows are strided views; the reshape materializes the patch matrix once,
+    // in (channel, ky, kx) order to match the flattened `[out, in, kh, kw]` weight.
+    let windows: Tensor<B, 6> = x.unfold::<5, _>(2, kh, stride[0]).unfold(3, kw, stride[1]);
+    let [_, _, oh, ow, _, _] = windows.dims();
+    let patches = windows.permute([0, 1, 4, 5, 2, 3]).reshape([b, k, oh * ow]);
+    let y = weight.reshape([1, o, k]).matmul(patches);
+    let y = match bias {
+        Some(bias) => y + bias.reshape([1, o, 1]),
+        None => y,
+    };
+    Some(y.reshape([b, o, oh, ow]))
 }
 
 pub struct InstanceNorm<B: Backend> {

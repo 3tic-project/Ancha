@@ -64,13 +64,13 @@ fn transpose_bn_folding_matches_eval_reference() {
     assert_eq!(reference.folded_bn, 0);
     assert_eq!(optimized.folded_bn, 1);
     let a: Vec<f32> = reference
-        .forward(input(), &AtomicBool::new(false))
+        .forward(input(), false, &AtomicBool::new(false))
         .unwrap()
         .into_data()
         .to_vec()
         .unwrap();
     let b: Vec<f32> = optimized
-        .forward(input(), &AtomicBool::new(false))
+        .forward(input(), true, &AtomicBool::new(false))
         .unwrap()
         .into_data()
         .to_vec()
@@ -116,19 +116,21 @@ fn nchw_matmul_broadcast_transpose_conv_and_live_skip_values_match_scalars() {
     let d = Default::default();
     let graph = Executable::<B>::from_bytes(&bytes, true, &d).unwrap();
     let input = Tensor::from_data(TensorData::new(vec![1., 2., 3., 4.], [1, 1, 2, 2]), &d);
-    let actual: Vec<f32> = graph
-        .forward(input, &AtomicBool::new(false))
-        .unwrap()
-        .into_data()
-        .to_vec()
-        .unwrap();
-    assert_eq!(actual, vec![8., 18., 12., 26.]);
+    for conv_gemm in [false, true] {
+        let actual: Vec<f32> = graph
+            .forward(input.clone(), conv_gemm, &AtomicBool::new(false))
+            .unwrap()
+            .into_data()
+            .to_vec()
+            .unwrap();
+        assert_eq!(actual, vec![8., 18., 12., 26.]);
+    }
     let batched = Tensor::from_data(
         TensorData::new(vec![1., 2., 3., 4., 5., 6., 7., 8.], [2, 1, 2, 2]),
         &d,
     );
     let actual: Vec<f32> = graph
-        .forward(batched, &AtomicBool::new(false))
+        .forward(batched, true, &AtomicBool::new(false))
         .unwrap()
         .into_data()
         .to_vec()
@@ -147,7 +149,11 @@ fn graph_rejects_unknown_ops_nonfinite_constants_and_cancels() {
     let graph = Executable::<B>::from_bytes(&model(g.clone()), true, &d).unwrap();
     assert!(
         graph
-            .forward(Tensor::zeros([1, 1, 1, 1], &d), &AtomicBool::new(true))
+            .forward(
+                Tensor::zeros([1, 1, 1, 1], &d),
+                false,
+                &AtomicBool::new(true)
+            )
             .is_err()
     );
     let mut bad = g.clone();

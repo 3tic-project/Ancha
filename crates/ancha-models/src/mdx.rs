@@ -1,6 +1,6 @@
 //! Strict classic MDX ONNX executor. Runs supported graphs directly in Burn;
 //! neither ONNX Runtime nor Python is linked into the application.
-use crate::weights::sha256_file;
+use crate::{spatial::conv2d_gemm, weights::sha256_file};
 use anyhow::{Context, Result, bail, ensure};
 use burn::tensor::{
     Tensor, TensorData,
@@ -469,7 +469,14 @@ impl<B: Backend> Graph<B> {
             nodes: g.node.len(),
         })
     }
-    pub fn forward(&self, input: Tensor<B, 4>, cancelled: &AtomicBool) -> Result<Tensor<B, 4>> {
+    /// `conv_gemm` runs ungrouped convolutions as patch gather + GEMM (exact; for GPUs
+    /// whose backend convolution falls back to direct kernels).
+    pub fn forward(
+        &self,
+        input: Tensor<B, 4>,
+        conv_gemm: bool,
+        cancelled: &AtomicBool,
+    ) -> Result<Tensor<B, 4>> {
         let mut values = self.constants.clone();
         values[self.input] = Some(input);
         let mut uses = self.uses.clone();
@@ -509,12 +516,25 @@ impl<B: Backend> Graph<B> {
                             ),
                         )
                     } else {
-                        conv2d(
-                            v[0].clone(),
-                            v[1].clone(),
-                            bias,
-                            ConvOptions::new(*stride, *padding, *dilation, *groups),
-                        )
+                        let gemm = (conv_gemm && *groups == 1 && *dilation == [1, 1])
+                            .then(|| {
+                                conv2d_gemm(
+                                    v[0].clone(),
+                                    v[1].clone(),
+                                    bias.clone(),
+                                    *stride,
+                                    *padding,
+                                )
+                            })
+                            .flatten();
+                        gemm.unwrap_or_else(|| {
+                            conv2d(
+                                v[0].clone(),
+                                v[1].clone(),
+                                bias,
+                                ConvOptions::new(*stride, *padding, *dilation, *groups),
+                            )
+                        })
                     }
                 }
                 Op::Relu => relu(v[0].clone()),
