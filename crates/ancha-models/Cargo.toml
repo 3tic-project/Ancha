@@ -8,10 +8,9 @@ publish = false
 
 [features]
 default = []
-wgpu = ["burn/wgpu", "burn/fusion", "cube"]
-cuda = ["burn/cuda", "burn/fusion", "cube"]
-# Hand-written CubeCL kernels (fused attention) for the fusion GPU backends.
-cube = ["dep:burn-cubecl", "dep:burn-fusion", "dep:burn-ir", "dep:cubecl"]
+wgpu = ["burn/wgpu", "burn/fusion"]
+# CUDA also builds the hand-written CubeCL kernels (fused attention, GEMM) in `fused`.
+cuda = ["burn/cuda", "burn/fusion", "dep:burn-cubecl", "dep:burn-fusion", "dep:burn-ir", "dep:cubecl"]
 convert = ["burn-store/pytorch"]
 onnx = ["dep:onnx-rs"]
 

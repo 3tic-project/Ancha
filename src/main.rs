@@ -124,11 +124,11 @@ struct SeparateArgs {
     #[arg(long, value_enum, default_value = "auto")]
     conv_strategy: ConvStrategy,
     /// RoFormer attention: `auto` uses the single-pass fused kernel on CUDA and tiled
-    /// materialized scores elsewhere; `fused` requires a GPU backend with the kernel.
+    /// materialized scores elsewhere; `fused` requires CUDA.
     #[arg(long, value_enum, default_value = "auto")]
     attention_kernel: AttentionKernel,
     /// RoFormer projections: `auto` uses the hand-written GEMM on CUDA and Burn matmul
-    /// elsewhere; `custom` requires a GPU backend.
+    /// elsewhere; `custom` requires CUDA.
     #[arg(long, value_enum, default_value = "auto")]
     gemm_kernel: GemmKernel,
 }
@@ -257,8 +257,8 @@ fn run() -> Result<()> {
                 AttentionKernel::Auto => {}
                 AttentionKernel::Fused => {
                     ensure!(
-                        kind.is_gpu(),
-                        "--attention-kernel fused needs a GPU backend (wgpu or cuda)"
+                        kind == BackendKind::Cuda,
+                        "--attention-kernel fused needs --backend cuda"
                     );
                     attention.fused_attention = true;
                 }
@@ -268,8 +268,8 @@ fn run() -> Result<()> {
                 GemmKernel::Auto => {}
                 GemmKernel::Custom => {
                     ensure!(
-                        kind.is_gpu(),
-                        "--gemm-kernel custom needs a GPU backend (wgpu or cuda)"
+                        kind == BackendKind::Cuda,
+                        "--gemm-kernel custom needs --backend cuda"
                     );
                     attention.custom_gemm = true;
                 }

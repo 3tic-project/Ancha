@@ -1,9 +1,11 @@
-//! Hand-written CubeCL kernels behind backend-generic entry points. Model code stays generic over
-//! `B: Backend`; each entry point returns `None` unless `B` is a fusion GPU backend with the kernel
-//! and the shapes are supported, so callers keep their Burn implementation as the fallback.
-#[cfg(feature = "cube")]
+//! Hand-written CubeCL kernels for the CUDA fusion backend behind backend-generic entry points.
+//! Model code stays generic over `B: Backend`; each entry point returns `None` unless `B` is
+//! `burn::backend::Cuda` and the shapes are supported, so callers keep their Burn implementation
+//! as the fallback. The kernels are not dispatched on WGPU: CubeCL's WGPU target lacks the
+//! shared-memory vector reinterpretation the GEMM relies on, and the output there was wrong.
+#[cfg(feature = "cuda")]
 mod attention;
-#[cfg(feature = "cube")]
+#[cfg(feature = "cuda")]
 mod gemm;
 
 use burn::tensor::{Tensor, backend::Backend};
@@ -21,7 +23,7 @@ pub fn attention<B: Backend>(
     if q.dims()[3] != ATTENTION_HEAD_DIM || k.dims() != q.dims() || v.dims() != q.dims() {
         return None;
     }
-    #[cfg(feature = "cube")]
+    #[cfg(feature = "cuda")]
     {
         let [groups, tokens, heads, width] = q.dims();
         let flat = |t: &Tensor<B, 4>| t.clone().reshape([groups, tokens, heads * width]);
@@ -30,7 +32,7 @@ pub fn attention<B: Backend>(
             &[&flat(q), &flat(k), &flat(v)],
         )
     }
-    #[cfg(not(feature = "cube"))]
+    #[cfg(not(feature = "cuda"))]
     None
 }
 
@@ -42,9 +44,9 @@ pub fn gated_attention<B: Backend>(packed: &Tensor<B, 3>, heads: usize) -> Optio
     if packed.dims()[2] < heads * (3 * ATTENTION_HEAD_DIM + 1) {
         return None;
     }
-    #[cfg(feature = "cube")]
+    #[cfg(feature = "cuda")]
     return cube::dispatch(cube::Kernel::GatedAttention { heads }, &[packed]);
-    #[cfg(not(feature = "cube"))]
+    #[cfg(not(feature = "cuda"))]
     None
 }
 
@@ -103,7 +105,7 @@ pub fn linear<B: Backend>(
     if epilogue.residual.is_some_and(|r| r.dims() != [n, m]) {
         return None;
     }
-    #[cfg(feature = "cube")]
+    #[cfg(feature = "cuda")]
     {
         // Every operand as a matrix so they share one rank.
         let bias = epilogue.bias.map(|b| b.clone().unsqueeze::<2>());
@@ -123,7 +125,7 @@ pub fn linear<B: Backend>(
         };
         cube::dispatch(kernel, &inputs)
     }
-    #[cfg(not(feature = "cube"))]
+    #[cfg(not(feature = "cuda"))]
     {
         let _ = epilogue;
         None
@@ -132,22 +134,13 @@ pub fn linear<B: Backend>(
 
 /// Whether backend `B` has the hand-written kernels (shape limits aside).
 pub fn available<B: Backend>() -> bool {
-    #[cfg(feature = "cube")]
-    {
-        let id = std::any::TypeId::of::<B>();
-        #[cfg(feature = "cuda")]
-        if id == std::any::TypeId::of::<burn::backend::Cuda>() {
-            return true;
-        }
-        #[cfg(feature = "wgpu")]
-        if id == std::any::TypeId::of::<burn::backend::Wgpu>() {
-            return true;
-        }
-    }
+    #[cfg(feature = "cuda")]
+    return std::any::TypeId::of::<B>() == std::any::TypeId::of::<burn::backend::Cuda>();
+    #[cfg(not(feature = "cuda"))]
     false
 }
 
-#[cfg(feature = "cube")]
+#[cfg(feature = "cuda")]
 mod cube {
     use burn::tensor::{Shape, Tensor, TensorPrimitive, backend::Backend, ops::FloatTensor};
     use burn_cubecl::{BoolElement, CubeBackend, CubeRuntime};
@@ -288,20 +281,12 @@ mod cube {
         }
     }
 
-    /// Runs `kernel` when `B` is one of the backends built with the kernels.
+    /// Runs `kernel` when `B` is the CUDA fusion backend.
     pub fn dispatch<B: Backend, const D: usize, const O: usize>(
         kernel: Kernel,
         inputs: &[&Tensor<B, D>],
     ) -> Option<Tensor<B, O>> {
-        #[cfg(feature = "cuda")]
-        if let Some(out) = on::<B, burn::backend::Cuda, D, O>(kernel, inputs) {
-            return Some(out);
-        }
-        #[cfg(feature = "wgpu")]
-        if let Some(out) = on::<B, burn::backend::Wgpu, D, O>(kernel, inputs) {
-            return Some(out);
-        }
-        None
+        on::<B, burn::backend::Cuda, D, O>(kernel, inputs)
     }
 
     fn on<B: Backend, C: Kernels, const D: usize, const O: usize>(
