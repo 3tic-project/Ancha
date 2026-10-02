@@ -75,6 +75,12 @@ pub struct AttentionPlan {
     pub host_threads: usize,
     /// HyperACE: ungrouped SegmModel convolutions as patch gather + GEMM.
     pub conv_gemm: bool,
+    /// Single-pass attention kernel where the backend has one ([`crate::fused`]); scores
+    /// are not materialized and the tiles above are unused.
+    pub fused_attention: bool,
+    /// Transformer projections through the hand-written GEMM ([`crate::fused::linear`]) where
+    /// the backend and shape allow; rows are always folded then.
+    pub custom_gemm: bool,
 }
 impl AttentionPlan {
     pub fn validate(self) -> Result<()> {
@@ -132,6 +138,8 @@ impl Default for AttentionPlan {
             batched_linear: true,
             host_threads: 1,
             conv_gemm: false,
+            fused_attention: false,
+            custom_gemm: false,
         }
     }
 }
@@ -221,16 +229,13 @@ impl<B: Backend> Attention<B> {
         let [groups, tokens, _] = x.dims();
         let (h, d) = (self.heads, self.head_dim);
         let x = unit_norm(x);
-        let split = |t: Tensor<B, 3>| dense(t.reshape([groups, tokens, h, d]).swap_dims(1, 2));
+        let split = |t: Tensor<B, 3>| t.reshape([groups, tokens, h, d]);
         let q = split(rope.query.apply(linear3(&self.q, x.clone(), plan)));
         let k = split(rope.key.apply(linear3(&self.k, x.clone(), plan)));
         let v = split(linear3(&self.v, x.clone(), plan));
-        let out = prescaled_attention(q, k, v, plan);
+        let out = token_major_attention(q, k, v, plan);
         let gates = sigmoid(linear3(&self.gates, x, plan)).reshape([groups, tokens, h, 1]);
-        let out = out
-            .swap_dims(1, 2)
-            .mul(gates)
-            .reshape([groups, tokens, h * d]);
+        let out = out.mul(gates).reshape([groups, tokens, h * d]);
         linear3(&self.output, out, plan)
     }
 }
@@ -260,6 +265,22 @@ pub fn exact_attention<B: Backend>(
 ) -> Tensor<B, 4> {
     let d = q.dims()[3];
     prescaled_attention(q.mul_scalar((d as f32).sqrt().recip()), k, v, plan)
+}
+
+/// [`prescaled_attention`] over `[groups, tokens, heads, d]` inputs, returning that layout.
+fn token_major_attention<B: Backend>(
+    q: Tensor<B, 4>,
+    k: Tensor<B, 4>,
+    v: Tensor<B, 4>,
+    plan: AttentionPlan,
+) -> Tensor<B, 4> {
+    if plan.fused_attention
+        && let Some(out) = crate::fused::attention(&q, &k, &v)
+    {
+        return out;
+    }
+    let heads_major = |t: Tensor<B, 4>| dense(t.swap_dims(1, 2));
+    prescaled_attention(heads_major(q), heads_major(k), heads_major(v), plan).swap_dims(1, 2)
 }
 
 /// `softmax(q·kᵀ)·v` with the 1/sqrt(d) scale already applied to `q`.
@@ -386,10 +407,18 @@ pub fn linear3<B: Backend>(
     input: Tensor<B, 3>,
     plan: AttentionPlan,
 ) -> Tensor<B, 3> {
+    let [groups, tokens, dim] = input.dims();
+    if plan.custom_gemm {
+        let bias = linear.bias.as_ref().map(|b| b.val());
+        let rows = input.clone().reshape([groups * tokens, dim]);
+        if let Some(output) = crate::fused::linear(&rows, &linear.weight.val(), bias.as_ref()) {
+            let width = output.dims()[1];
+            return output.reshape([groups, tokens, width]);
+        }
+    }
     if plan.batched_linear {
         return linear.forward(input);
     }
-    let [groups, tokens, dim] = input.dims();
     let output = linear.forward(input.reshape([groups * tokens, dim]));
     let width = output.dims()[1];
     output.reshape([groups, tokens, width])

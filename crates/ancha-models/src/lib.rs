@@ -2,6 +2,7 @@
 pub mod config;
 #[cfg(feature = "convert")]
 pub mod convert;
+pub mod fused;
 mod hyperace;
 #[cfg(feature = "onnx")]
 pub mod mdx;
