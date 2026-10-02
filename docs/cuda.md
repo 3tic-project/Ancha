@@ -18,7 +18,8 @@ PyTorch / UVR 参考比对；所有速度数字都来自本机串行实测，pro
 
 ```bash
 # nvcc 只用于构建时确定 cudarc 的 CUDA 绑定版本；没有 nvcc 时设 CUDARC_CUDA_VERSION=12020 一类的值。
-PATH=/usr/local/cuda/bin:$PATH cargo build --release --locked --features convert,wgpu,cuda,onnx,cpu-opt
+# 默认 feature 已含 CPU / WGPU / ONNX，只需追加 cuda。
+PATH=/usr/local/cuda/bin:$PATH cargo build --release --locked --features cuda --examples
 target/release/ancha doctor --backend cuda          # 打印 GPU 名称、算力和显存后做 2×2 matmul
 target/release/ancha separate NO_TRACK/runs/clip-3s.wav --model NO_TRACK/models/leap-xe-voc \
   --backend cuda --device 0 --output NO_TRACK/runs/my-cuda
@@ -150,6 +151,43 @@ RoFormer 短块为 `--chunk-samples 132300 --overlap 1`，原生块为 manifest 
 
 明细见 [cuda-benchmark.json](reports/cuda-benchmark.json)。
 
+## 整首歌全模型示例
+
+[examples/separate_all.rs](../examples/separate_all.rs) 在一个进程里用同一后端依次运行 8 个模型
+（各自的原生上下文与该后端的默认设置），每个模型写出 stem 与 run.json，并汇总到 summary.json。
+
+- 输入：`NO_TRACK/test_file/ReoNa - Amore.mp3`（11.2 MB，277.57 秒）。
+- 二进制：`404ec9c`，`cargo build --release --locked --features cuda --examples`，即默认 feature 加 cuda；
+  同一个二进制也可以用 `--backend wgpu|cpu|ndarray` 运行。
+- 命令：`target/release/examples/separate_all --backend cuda --output NO_TRACK/runs/examples/full-song-cuda`。
+- 预热：正式运行前先跑过一次 30 秒片段（`--start 30 --duration 30`，用时 619.8 秒），为本示例的缓存作用域
+  `ptx-sm61/separate_all` 生成 PTX 和 autotune 结果。下表不包含这部分冷启动代价，所以首块与稳态接近。
+
+| 模型 | 块数 | 加载 | 模型 | 每块（首次 / 稳态） | 其它 | 总耗时 | RTF | 运行后显存占用 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| leap-xe-voc | 30 | 1.66 s | 855.04 s | 28.57 / 28.50 s | 6.82 s | 863.52 s | 3.111 | 4556 MiB |
+| deux | 45 | 5.42 s | 525.84 s | 11.89 / 11.68 s | 9.51 s | 540.77 s | 1.948 | 4622 MiB |
+| hyperace-v2-voc | 58 | 1.81 s | 1040.74 s | 17.98 / 17.94 s | 11.86 s | 1054.41 s | 3.799 | 5522 MiB |
+| hyperace-v2-inst | 58 | 1.80 s | 1040.88 s | 17.94 / 17.95 s | 12.07 s | 1054.74 s | 3.800 | 5522 MiB |
+| UVR_MDXNET_9482 | 49 | 0.23 s | 19.71 s | 0.41 / 0.40 s | 5.25 s | 25.20 s | 0.091 | 5522 MiB |
+| UVR_MDXNET_KARA | 49 | 0.22 s | 19.71 s | 0.40 / 0.40 s | 5.23 s | 25.16 s | 0.091 | 5522 MiB |
+| UVR_MDXNET_KARA_2 | 48 | 0.41 s | 29.83 s | 0.62 / 0.62 s | 4.75 s | 34.99 s | 0.126 | 5522 MiB |
+| UVR-MDX-NET-Inst_HQ_2 | 49 | 0.51 s | 46.88 s | 0.96 / 0.96 s | 5.57 s | 52.96 s | 0.191 | 5522 MiB |
+
+“其它”等于总耗时减去加载和模型时间，包括解码、重采样、STFT / iSTFT、重叠相加和写文件。RTF 为总耗时除以音频时长，
+大于 1 表示比实时慢。
+
+- 8 个模型合计 3651.8 秒（约 61 分钟），进程峰值 RSS 为 2421 MiB。四个 RoFormer 类模型占其中的 96.2%。
+- 稳态每块耗时与上一节的原生块测量一致（Leap 28.58 秒，HyperACE 17.94 秒）。全曲运行中最慢的稳态块比中位数
+  最多慢 0.4%，长时间运行没有出现变慢。
+- 显存一列是每个模型结束后 `cuMemGetInfo` 的 total − free，包含 CUDA 上下文和 CubeCL 内存池。内存池在进程内
+  复用，模型释放后也不归还驱动，所以这一列只增不减，不能当作单个模型的峰值。
+- 输出检查：所有 stem 都是有限值。不同模型的全曲人声两两比较，SDR 为 12.4–22.7 dB：RoFormer 类模型之间为
+  18.2–22.7 dB，涉及 MDX 的组合为 12.4–15.1 dB。这只说明各模型给出的分离结果彼此一致，不是对真值的评测；
+  逐模型的数值正确性见“数值一致性”一节的片段级参考比对。
+
+明细（含每块耗时与两两 SDR）见 [full-song-cuda.json](reports/full-song-cuda.json)。
+
 ## profile 记录
 
 Nsight Systems 2025.5.2（`-t cuda`）记录真实 GPU 内核时长，不做逐内核同步；3 秒片段，缓存已预热，单块。
@@ -204,10 +242,12 @@ Nsight Systems 2025.5.2（`-t cuda`）记录真实 GPU 内核时长，不做逐�
 ## 复现
 
 ```bash
-PATH=/usr/local/cuda/bin:$PATH cargo build --release --locked --features convert,wgpu,cuda,onnx,cpu-opt
-cargo test --release --locked --features convert,cuda,onnx,cpu-opt --test cuda_contracts --test cuda_device_failure
+PATH=/usr/local/cuda/bin:$PATH cargo build --release --locked --features cuda --examples
+cargo test --release --locked --features cuda --test cuda_contracts --test cuda_device_failure
 ANCHA_BACKENDS=cuda bash scripts/parity-matrix.sh            # 需 NO_TRACK/.venv-parity 与 NO_TRACK/reference
 ANCHA_BACKENDS="cuda wgpu cpu" bash scripts/benchmark-backends.sh
+target/release/examples/separate_all --backend cuda --start 30 --duration 30   # 预热缓存
+target/release/examples/separate_all --backend cuda                            # 整首歌、全部模型
 nsys profile -t cuda -o leap target/release/ancha separate NO_TRACK/runs/clip-3s.wav \
   --model NO_TRACK/models/leap-xe-voc --backend cuda --chunk-samples 132300 --overlap 1 --output /tmp/leap
 ```
