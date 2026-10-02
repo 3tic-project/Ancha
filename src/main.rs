@@ -179,7 +179,7 @@ fn run() -> Result<()> {
             }
             BackendChoice::Cuda => {
                 #[cfg(feature = "cuda")]
-                doctor::<burn::backend::Cuda>(&burn::backend::cuda::CudaDevice::new(device))?;
+                doctor::<burn::backend::Cuda>(&cuda_device(device)?)?;
                 #[cfg(not(feature = "cuda"))]
                 {
                     let _ = device;
@@ -275,7 +275,7 @@ fn run() -> Result<()> {
                     {
                         separate::<burn::backend::Cuda>(
                             &options,
-                            &burn::backend::cuda::CudaDevice::new(args.device),
+                            &cuda_device(args.device)?,
                             "cuda",
                             &cancelled,
                             progress,
@@ -359,6 +359,16 @@ fn run() -> Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(feature = "cuda")]
+fn cuda_device(index: usize) -> Result<burn::backend::cuda::CudaDevice> {
+    let info = ancha::cuda::prepare(index)?;
+    eprintln!(
+        "CUDA device {index}: {} (sm_{})",
+        info.name, info.compute_capability
+    );
+    Ok(burn::backend::cuda::CudaDevice::new(index))
 }
 
 fn doctor<B: Backend>(device: &B::Device) -> Result<()> {
@@ -446,7 +456,7 @@ fn run_mdx(args: SeparateArgs, cancelled: &AtomicBool) -> Result<()> {
             {
                 separate_mdx::<burn::backend::Cuda>(
                     &options,
-                    &burn::backend::cuda::CudaDevice::new(args.device),
+                    &cuda_device(args.device)?,
                     "cuda",
                     cancelled,
                     progress,

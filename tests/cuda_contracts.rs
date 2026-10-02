@@ -14,6 +14,18 @@ use burn_flex::Flex;
 use std::{path::Path, sync::atomic::AtomicBool};
 mod support;
 
+fn device() -> CudaDevice {
+    let info = ancha::cuda::prepare(0).unwrap();
+    assert!(info.compute_capability >= 50 && !info.name.is_empty());
+    CudaDevice::new(0)
+}
+
+#[test]
+fn cuda_probe_rejects_missing_device_without_panicking() {
+    let error = ancha::cuda::probe(4096).unwrap_err().to_string();
+    assert!(error.contains("not found"), "{error}");
+}
+
 fn max_difference(a: &Path, b: &Path) -> f32 {
     let a = decode(a, DecodeOptions::default()).unwrap();
     let b = decode(b, DecodeOptions::default()).unwrap();
@@ -68,14 +80,8 @@ fn cuda_separation_matches_flex_cpu_for_both_families() {
             |_, _| {},
         )
         .unwrap();
-        let report = separate::<Cuda>(
-            &gpu,
-            &CudaDevice::new(0),
-            "cuda",
-            &AtomicBool::new(false),
-            |_, _| {},
-        )
-        .unwrap();
+        let report =
+            separate::<Cuda>(&gpu, &device(), "cuda", &AtomicBool::new(false), |_, _| {}).unwrap();
         assert_eq!(report.backend, "cuda");
         assert!(report.build_features.contains(&"cuda".to_string()));
         for name in ["vocals", "instrumental"] {
@@ -89,7 +95,7 @@ fn cuda_separation_matches_flex_cpu_for_both_families() {
 #[test]
 fn cuda_gemm_convolution_matches_backend_convolution() {
     type B = Cuda;
-    let d = CudaDevice::new(0);
+    let d = device();
     let values = |n: usize, s: f32| {
         (0..n)
             .map(|i| (i as f32 * 0.37 + s).sin())

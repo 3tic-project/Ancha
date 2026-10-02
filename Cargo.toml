@@ -27,7 +27,7 @@ publish = false
 [features]
 default = []
 wgpu = ["ancha-models/wgpu", "burn/wgpu", "burn/fusion", "burn/autotune"]
-cuda = ["ancha-models/cuda", "burn/cuda", "burn/fusion", "burn/autotune"]
+cuda = ["ancha-models/cuda", "burn/cuda", "burn/fusion", "burn/autotune", "burn/cubecl", "dep:cudarc"]
 accelerate = ["burn/accelerate"]
 convert = ["ancha-models/convert"]
 onnx = ["ancha-models/onnx"]
@@ -48,6 +48,7 @@ clap = { version = "4.5", features = ["derive"] }
 sha2 = "0.10"
 ctrlc = "3.5"
 tempfile = "3"
+cudarc = { version = "0.19.10", default-features = false, features = ["std", "driver", "fallback-dynamic-loading", "cuda-version-from-build-system"], optional = true }
 
 [dev-dependencies]
 tempfile = "3"

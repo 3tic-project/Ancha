@@ -105,6 +105,7 @@ dependencies = [
  "burn-ndarray",
  "clap",
  "ctrlc",
+ "cudarc",
  "safetensors 0.8.0",
  "serde",
  "serde_json",
@@ -533,6 +534,7 @@ dependencies = [
  "burn-tch",
  "burn-vision",
  "burn-wgpu",
+ "cubecl",
 ]
 
 [[package]]
