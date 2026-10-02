@@ -22,35 +22,110 @@ pub fn attention<B: Backend>(
         return None;
     }
     #[cfg(feature = "cube")]
-    return cube::dispatch(cube::Kernel::Attention, &[q, k, v]);
+    {
+        let [groups, tokens, heads, width] = q.dims();
+        let flat = |t: &Tensor<B, 4>| t.clone().reshape([groups, tokens, heads * width]);
+        cube::dispatch(
+            cube::Kernel::Attention { heads },
+            &[&flat(q), &flat(k), &flat(v)],
+        )
+    }
     #[cfg(not(feature = "cube"))]
     None
 }
 
-/// `x [n, k] · weight [k, m] (+ bias [m])` in Burn's `Linear` layout; `None` unless
-/// `k % 8 == 0` and `m % 128 == 0`.
+/// The RoFormer attention core between the projections, from one packed projection
+/// `[groups, tokens, columns]` holding (already rotated) q, k, v (`heads·64` columns each, from
+/// column 0) and the per-head gate logits after them: `softmax(q·kᵀ)·v · sigmoid(gate)`.
+/// Returns `[groups, tokens, heads, 64]`.
+pub fn gated_attention<B: Backend>(packed: &Tensor<B, 3>, heads: usize) -> Option<Tensor<B, 4>> {
+    if packed.dims()[2] < heads * (3 * ATTENTION_HEAD_DIM + 1) {
+        return None;
+    }
+    #[cfg(feature = "cube")]
+    return cube::dispatch(cube::Kernel::GatedAttention { heads }, &[packed]);
+    #[cfg(not(feature = "cube"))]
+    None
+}
+
+/// Work fused into the output pass of [`linear`], applied in field order.
+pub struct Epilogue<'a, B: Backend> {
+    /// `[m]`.
+    pub bias: Option<&'a Tensor<B, 1>>,
+    /// erf-GELU.
+    pub gelu: bool,
+    /// Interleaved rotary embedding: `[4, tokens, 64]` tables (query cos / signed sin carrying
+    /// 1/sqrt(d), key cos / signed sin) and the query width `w`; columns `[0, w)` and `[w, 2w)`
+    /// of row `r` are rotated as queries and keys of token `r % tokens`.
+    pub rotary: Option<(&'a Tensor<B, 3>, usize)>,
+    /// `[n, m]` added last.
+    pub residual: Option<&'a Tensor<B, 2>>,
+}
+impl<B: Backend> Default for Epilogue<'_, B> {
+    fn default() -> Self {
+        Self {
+            bias: None,
+            gelu: false,
+            rotary: None,
+            residual: None,
+        }
+    }
+}
+
+/// Whether [`linear`] handles `[n, k]·[k, m]`: `k % 8 == 0` and `m % 128 == 0`.
+pub fn linear_supported(k: usize, m: usize) -> bool {
+    k > 0 && k.is_multiple_of(8) && m > 0 && m.is_multiple_of(128)
+}
+
+/// `x [n, k] · weight [k, m]` in Burn's `Linear` layout, then the [`Epilogue`]; `None` unless
+/// [`linear_supported`] and the epilogue operands fit.
 pub fn linear<B: Backend>(
     x: &Tensor<B, 2>,
     weight: &Tensor<B, 2>,
-    bias: Option<&Tensor<B, 1>>,
+    epilogue: Epilogue<'_, B>,
 ) -> Option<Tensor<B, 2>> {
-    let [_, k] = x.dims();
+    let [n, k] = x.dims();
     let [rows, m] = weight.dims();
-    if rows != k || k == 0 || k % 8 != 0 || m == 0 || m % 128 != 0 {
+    if rows != k || !linear_supported(k, m) {
+        return None;
+    }
+    if let Some((table, width)) = epilogue.rotary {
+        let [four, tokens, dim] = table.dims();
+        if four != 4
+            || dim != ATTENTION_HEAD_DIM
+            || n % tokens != 0
+            || width % 64 != 0
+            || 2 * width > m
+        {
+            return None;
+        }
+    }
+    if epilogue.residual.is_some_and(|r| r.dims() != [n, m]) {
         return None;
     }
     #[cfg(feature = "cube")]
     {
-        // As [1, m] so every operand has the same rank.
-        let bias = bias.map(|b| b.clone().unsqueeze::<2>());
-        match &bias {
-            Some(b) => cube::dispatch(cube::Kernel::LinearBias, &[x, weight, b]),
-            None => cube::dispatch(cube::Kernel::Linear, &[x, weight]),
-        }
+        // Every operand as a matrix so they share one rank.
+        let bias = epilogue.bias.map(|b| b.clone().unsqueeze::<2>());
+        let rotary = epilogue.rotary.map(|(table, width)| {
+            let [_, tokens, dim] = table.dims();
+            (table.clone().reshape([4 * tokens, dim]), tokens, width)
+        });
+        let mut inputs = vec![x, weight];
+        inputs.extend(&bias);
+        inputs.extend(epilogue.residual);
+        inputs.extend(rotary.as_ref().map(|(table, ..)| table));
+        let kernel = cube::Kernel::Linear {
+            bias: bias.is_some(),
+            gelu: epilogue.gelu,
+            residual: epilogue.residual.is_some(),
+            rotary: rotary.as_ref().map(|(_, tokens, width)| (*tokens, *width)),
+        };
+        cube::dispatch(kernel, &inputs)
     }
     #[cfg(not(feature = "cube"))]
     {
-        let _ = bias;
+        let _ = epilogue;
         None
     }
 }
@@ -85,25 +160,32 @@ mod cube {
 
     #[derive(Clone, Copy, Debug)]
     pub enum Kernel {
-        /// `[q, k, v]` → attention output shaped like `q`.
-        Attention,
-        /// `[x, w]` → `x·w`.
-        Linear,
-        /// `[x, w, bias [1, m]]` → `x·w + bias`.
-        LinearBias,
+        /// `[q, k, v]` as `[groups, tokens, heads·64]` → `[groups, tokens, heads, 64]`.
+        Attention { heads: usize },
+        /// `[packed]`, see [`super::gated_attention`].
+        GatedAttention { heads: usize },
+        /// `[x, w, bias?, residual?, rotary table?]` → `[n, m]`; rotary is `(tokens, width)`.
+        Linear {
+            bias: bool,
+            gelu: bool,
+            residual: bool,
+            rotary: Option<(usize, usize)>,
+        },
     }
     impl Kernel {
         fn id(self) -> &'static str {
             match self {
-                Self::Attention => "ancha_flash_attention",
-                Self::Linear => "ancha_gemm",
-                Self::LinearBias => "ancha_gemm_bias",
+                Self::Attention { .. } => "ancha_flash_attention",
+                Self::GatedAttention { .. } => "ancha_gated_attention",
+                Self::Linear { .. } => "ancha_gemm",
             }
         }
         fn output_shape(self, inputs: &[Shape]) -> Shape {
             match self {
-                Self::Attention => inputs[0].clone(),
-                Self::Linear | Self::LinearBias => [inputs[0][0], inputs[1][1]].into(),
+                Self::Attention { heads } | Self::GatedAttention { heads } => {
+                    [inputs[0][0], inputs[0][1], heads, super::ATTENTION_HEAD_DIM].into()
+                }
+                Self::Linear { .. } => [inputs[0][0], inputs[1][1]].into(),
             }
         }
     }
@@ -115,12 +197,45 @@ mod cube {
 
     impl<R: CubeRuntime, BT: BoolElement> Kernels for CubeBackend<R, f32, i32, BT> {
         fn launch(kernel: Kernel, inputs: Vec<FloatTensor<Self>>) -> FloatTensor<Self> {
+            use super::attention::{Columns, launch};
             let mut inputs = inputs.into_iter();
             let mut next = || inputs.next().expect("kernel input");
             match kernel {
-                Kernel::Attention => super::attention::launch(next(), next(), next()),
-                Kernel::Linear => super::gemm::launch(next(), next(), None),
-                Kernel::LinearBias => super::gemm::launch(next(), next(), Some(next())),
+                Kernel::Attention { heads } => {
+                    let columns = Columns {
+                        q: 0,
+                        k: 0,
+                        v: 0,
+                        gate: None,
+                    };
+                    launch([next(), next(), next()], heads, columns)
+                }
+                Kernel::GatedAttention { heads } => {
+                    let packed = next();
+                    let inner = heads * super::ATTENTION_HEAD_DIM;
+                    let columns = Columns {
+                        q: 0,
+                        k: inner,
+                        v: 2 * inner,
+                        gate: Some(3 * inner),
+                    };
+                    launch([packed.clone(), packed.clone(), packed], heads, columns)
+                }
+                Kernel::Linear {
+                    bias,
+                    gelu,
+                    residual,
+                    rotary,
+                } => {
+                    let (x, w) = (next(), next());
+                    let operands = super::gemm::Operands {
+                        bias: bias.then(&mut next),
+                        gelu,
+                        residual: residual.then(&mut next),
+                        rotary: rotary.map(|(tokens, width)| (next(), tokens, width)),
+                    };
+                    super::gemm::launch(x, w, operands)
+                }
             }
         }
     }
@@ -174,25 +289,25 @@ mod cube {
     }
 
     /// Runs `kernel` when `B` is one of the backends built with the kernels.
-    pub fn dispatch<B: Backend, const D: usize>(
+    pub fn dispatch<B: Backend, const D: usize, const O: usize>(
         kernel: Kernel,
         inputs: &[&Tensor<B, D>],
-    ) -> Option<Tensor<B, D>> {
+    ) -> Option<Tensor<B, O>> {
         #[cfg(feature = "cuda")]
-        if let Some(out) = on::<B, burn::backend::Cuda, D>(kernel, inputs) {
+        if let Some(out) = on::<B, burn::backend::Cuda, D, O>(kernel, inputs) {
             return Some(out);
         }
         #[cfg(feature = "wgpu")]
-        if let Some(out) = on::<B, burn::backend::Wgpu, D>(kernel, inputs) {
+        if let Some(out) = on::<B, burn::backend::Wgpu, D, O>(kernel, inputs) {
             return Some(out);
         }
         None
     }
 
-    fn on<B: Backend, C: Kernels, const D: usize>(
+    fn on<B: Backend, C: Kernels, const D: usize, const O: usize>(
         kernel: Kernel,
         inputs: &[&Tensor<B, D>],
-    ) -> Option<Tensor<B, D>> {
+    ) -> Option<Tensor<B, O>> {
         let inputs = inputs
             .iter()
             .map(|&t| {
@@ -201,9 +316,9 @@ mod cube {
                     .map(|t| t.clone().into_primitive().tensor())
             })
             .collect::<Option<Vec<_>>>()?;
-        let out = Tensor::<C, D>::from_primitive(TensorPrimitive::Float(C::launch(kernel, inputs)));
+        let out = Tensor::<C, O>::from_primitive(TensorPrimitive::Float(C::launch(kernel, inputs)));
         (Box::new(out) as Box<dyn Any>)
-            .downcast::<Tensor<B, D>>()
+            .downcast::<Tensor<B, O>>()
             .ok()
             .map(|t| *t)
     }

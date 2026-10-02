@@ -35,7 +35,13 @@ fn main() {
         let w = Tensor::<Cuda, 2>::random([k, m], Distribution::Normal(0.0, 0.05), &device);
         let b = Tensor::<Cuda, 1>::random([m], Distribution::Normal(0.0, 1.0), &device);
         let burn = || x.clone().matmul(w.clone()) + b.clone().unsqueeze::<2>();
-        let custom = || fused::linear(&x, &w, Some(&b)).expect("custom GEMM");
+        let custom = || {
+            let epilogue = fused::Epilogue {
+                bias: Some(&b),
+                ..fused::Epilogue::default()
+            };
+            fused::linear(&x, &w, epilogue).expect("custom GEMM")
+        };
         let difference = (burn() - custom()).abs().max().into_scalar();
         let flops = 2.0 * (rows * k * m) as f64;
         let (reference, single) = (time(&burn), time(&custom));

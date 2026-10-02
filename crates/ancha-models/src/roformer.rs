@@ -192,6 +192,10 @@ pub struct Attention<B: Backend> {
     v: Linear<B>,
     gates: Linear<B>,
     output: Linear<B>,
+    /// `[dim, columns]` weight and bias of q, k, v and the gates side by side, zero-padded to
+    /// 128 columns, for one GEMM feeding [`crate::fused::gated_attention`]; only built for
+    /// backends with the kernels.
+    packed: Option<(Tensor<B, 2>, Tensor<B, 1>)>,
     /// Host rotary frequencies; tables are built once per forward and axis.
     pub freqs: Vec<f32>,
     heads: usize,
@@ -205,19 +209,45 @@ impl<B: Backend> Attention<B> {
         let qkv = w.take(&format!("{p}.to_qkv.weight"), &[3 * inner, c.dim])?;
         let gate_weight = w.take(&format!("{p}.to_gates.weight"), &[c.heads, c.dim])?;
         let gate_bias = w.take(&format!("{p}.to_gates.bias"), &[c.heads])?;
+        let q = folded_linear(&qkv, c.dim, 0..inner, &norm, 1.0, None, device);
+        let k = folded_linear(&qkv, c.dim, inner..2 * inner, &norm, 1.0, None, device);
+        let v = folded_linear(&qkv, c.dim, 2 * inner..3 * inner, &norm, 1.0, None, device);
+        let gates = folded_linear(
+            &gate_weight,
+            c.dim,
+            0..c.heads,
+            &norm,
+            1.0,
+            Some(&gate_bias),
+            device,
+        );
+        let packed = (crate::fused::available::<B>()
+            && c.head_dim == crate::fused::ATTENTION_HEAD_DIM)
+            .then(|| {
+                let used = 3 * inner + c.heads;
+                let pad = used.next_multiple_of(128) - used;
+                let mut weights = vec![
+                    q.weight.val(),
+                    k.weight.val(),
+                    v.weight.val(),
+                    gates.weight.val(),
+                ];
+                let mut biases = vec![
+                    Tensor::zeros([3 * inner], device),
+                    Tensor::from_data(TensorData::new(gate_bias.clone(), [c.heads]), device),
+                ];
+                if pad > 0 {
+                    weights.push(Tensor::zeros([c.dim, pad], device));
+                    biases.push(Tensor::zeros([pad], device));
+                }
+                (Tensor::cat(weights, 1), Tensor::cat(biases, 0))
+            });
         Ok(Self {
-            q: folded_linear(&qkv, c.dim, 0..inner, &norm, 1.0, None, device),
-            k: folded_linear(&qkv, c.dim, inner..2 * inner, &norm, 1.0, None, device),
-            v: folded_linear(&qkv, c.dim, 2 * inner..3 * inner, &norm, 1.0, None, device),
-            gates: folded_linear(
-                &gate_weight,
-                c.dim,
-                0..c.heads,
-                &norm,
-                1.0,
-                Some(&gate_bias),
-                device,
-            ),
+            q,
+            k,
+            v,
+            gates,
+            packed,
             output: w.linear(&format!("{p}.to_out.0"), inner, c.dim, false, device)?,
             freqs: w.take(&format!("{p}.rotary_embed.freqs"), &[c.head_dim / 2])?,
             heads: c.heads,
@@ -244,13 +274,36 @@ impl<B: Backend> Attention<B> {
 pub struct AxisRope<B: Backend> {
     pub query: RopeTables<B>,
     pub key: RopeTables<B>,
+    /// One head's `[4, tokens, head_dim]` query cos / sin and key cos / sin, for the rotary
+    /// epilogue of [`crate::fused::linear`].
+    pub packed: Option<Tensor<B, 3>>,
 }
 impl<B: Backend> AxisRope<B> {
     pub fn new(freqs: &[f32], tokens: usize, heads: usize, device: &B::Device) -> Self {
         let scale = ((freqs.len() * 2) as f32).sqrt().recip();
+        let packed = crate::fused::available::<B>().then(|| {
+            let width = freqs.len() * 2;
+            let mut data = Vec::with_capacity(4 * tokens * width);
+            for scale in [scale, 1.0] {
+                for sine in [false, true] {
+                    for t in 0..tokens {
+                        for &f in freqs {
+                            let (s, c) = (t as f32 * f).sin_cos();
+                            data.extend(if sine {
+                                [-s * scale, s * scale]
+                            } else {
+                                [c * scale, c * scale]
+                            });
+                        }
+                    }
+                }
+            }
+            Tensor::from_data(TensorData::new(data, [4, tokens, width]), device)
+        });
         Self {
             query: RopeTables::new(freqs, tokens, heads, scale, device),
             key: RopeTables::new(freqs, tokens, heads, 1.0, device),
+            packed,
         }
     }
 }
@@ -389,6 +442,12 @@ impl<B: Backend> Transformer<B> {
         rope: &AxisRope<B>,
         plan: AttentionPlan,
     ) -> Tensor<B, 3> {
+        if plan.fused_attention
+            && plan.custom_gemm
+            && let Some(y) = self.forward_kernels(x.clone(), rope)
+        {
+            return y;
+        }
         let x = self.attention.forward(x.clone(), rope, plan) + x;
         let hidden = gelu(linear3(&self.ff_in, unit_norm(x.clone()), plan));
         let y = linear3(&self.ff_out, hidden, plan) + x;
@@ -397,6 +456,67 @@ impl<B: Backend> Transformer<B> {
         } else {
             y
         }
+    }
+
+    /// The same block on the hand-written kernels: a packed q / k / v / gate GEMM with RoPE in
+    /// its epilogue, gated attention, then output and feed-forward GEMMs with bias, GELU and the
+    /// residuals in their epilogues. `None` when the backend or a shape is unsupported.
+    fn forward_kernels(&self, x: Tensor<B, 3>, rope: &AxisRope<B>) -> Option<Tensor<B, 3>> {
+        use crate::fused::{Epilogue, gated_attention, linear, linear_supported};
+        let a = &self.attention;
+        let ((weight, bias), table) = (a.packed.as_ref()?, rope.packed.as_ref()?);
+        let [groups, tokens, dim] = x.dims();
+        let (inner, hidden) = (a.heads * a.head_dim, self.ff_in.weight.dims()[1]);
+        let columns = weight.dims()[1];
+        let shapes = [(dim, columns), (inner, dim), (dim, hidden), (hidden, dim)];
+        if !shapes.iter().all(|&(k, m)| linear_supported(k, m)) {
+            return None;
+        }
+        let rows = groups * tokens;
+        let x = x.reshape([rows, dim]);
+        let packed = linear(
+            &unit_norm(x.clone()),
+            weight,
+            Epilogue {
+                bias: Some(bias),
+                rotary: Some((table, inner)),
+                ..Epilogue::default()
+            },
+        )?;
+        let attended = gated_attention(&packed.reshape([groups, tokens, columns]), a.heads)?;
+        let x = linear(
+            &attended.reshape([rows, inner]),
+            &a.output.weight.val(),
+            Epilogue {
+                residual: Some(&x),
+                ..Epilogue::default()
+            },
+        )?;
+        let ff_in_bias = self.ff_in.bias.as_ref().map(|b| b.val());
+        let hidden = linear(
+            &unit_norm(x.clone()),
+            &self.ff_in.weight.val(),
+            Epilogue {
+                bias: ff_in_bias.as_ref(),
+                gelu: true,
+                ..Epilogue::default()
+            },
+        )?;
+        let ff_out_bias = self.ff_out.bias.as_ref().map(|b| b.val());
+        let y = linear(
+            &hidden,
+            &self.ff_out.weight.val(),
+            Epilogue {
+                bias: ff_out_bias.as_ref(),
+                residual: Some(&x),
+                ..Epilogue::default()
+            },
+        )?
+        .reshape([groups, tokens, dim]);
+        Some(match &self.output_norm {
+            Some(norm) => norm.forward(y),
+            None => y,
+        })
     }
 }
 
@@ -411,7 +531,11 @@ pub fn linear3<B: Backend>(
     if plan.custom_gemm {
         let bias = linear.bias.as_ref().map(|b| b.val());
         let rows = input.clone().reshape([groups * tokens, dim]);
-        if let Some(output) = crate::fused::linear(&rows, &linear.weight.val(), bias.as_ref()) {
+        let epilogue = crate::fused::Epilogue {
+            bias: bias.as_ref(),
+            ..crate::fused::Epilogue::default()
+        };
+        if let Some(output) = crate::fused::linear(&rows, &linear.weight.val(), epilogue) {
             let width = output.dims()[1];
             return output.reshape([groups, tokens, width]);
         }

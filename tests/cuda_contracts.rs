@@ -8,12 +8,18 @@ use ancha_audio::{
 use ancha_models::{
     config::Family,
     fused,
-    roformer::{AttentionPlan, exact_attention},
+    roformer::{AttentionPlan, AxisRope, exact_attention},
     spatial::conv2d_gemm,
 };
 use burn::{
     backend::{Cuda, cuda::CudaDevice},
-    tensor::{Tensor, TensorData, backend::Backend, module::conv2d, ops::ConvOptions},
+    tensor::{
+        Tensor, TensorData,
+        activation::{gelu, sigmoid},
+        backend::Backend,
+        module::conv2d,
+        ops::ConvOptions,
+    },
 };
 use burn_flex::Flex;
 use std::{path::Path, sync::atomic::AtomicBool};
@@ -179,15 +185,83 @@ fn cuda_fused_attention_matches_tiled_attention() {
             plan,
         )
         .swap_dims(1, 2);
-        let actual = fused::attention(&q.mul_scalar(0.125), &k, &v).expect("fused attention");
-        let max = max_abs(expected, actual);
+        let actual =
+            fused::attention(&q.clone().mul_scalar(0.125), &k, &v).expect("fused attention");
+        let max = max_abs(expected.clone(), actual);
         assert!(
             max < 1e-5,
             "fused attention [{groups}, {tokens}, {heads}]: {max}"
         );
+        // The packed layout of the RoFormer block: q | k | v | per-head gates | padding.
+        let flat = |t: Tensor<Cuda, 4>| t.reshape([groups, tokens, heads * 64]);
+        let gates = wave([groups, tokens, heads], 4.4, &d).mul_scalar(3.0);
+        let packed = Tensor::cat(
+            vec![
+                flat(q.mul_scalar(0.125)),
+                flat(k),
+                flat(v),
+                gates.clone(),
+                Tensor::zeros([groups, tokens, 5], &d),
+            ],
+            2,
+        );
+        let gated = expected * sigmoid(gates).unsqueeze_dim::<4>(3);
+        let actual = fused::gated_attention(&packed, heads).expect("gated attention");
+        let max = max_abs(gated, actual);
+        assert!(
+            max < 1e-5,
+            "gated attention [{groups}, {tokens}, {heads}]: {max}"
+        );
     }
     let narrow = wave([1, 8, 1, 32], 0.0, &d);
     assert!(fused::attention(&narrow, &narrow, &narrow).is_none());
+}
+
+#[test]
+fn cuda_gemm_epilogues_match_burn_ops() {
+    let d = device();
+    let (groups, tokens, k, heads) = (3, 70, 64, 2);
+    let (rows, width) = (groups * tokens, heads * 64);
+    let m = 3 * width;
+    let x = wave([rows, k], 0.3, &d);
+    let w = wave([k, m], 1.1, &d).mul_scalar(0.1);
+    let b = wave([m], 2.2, &d);
+    let r = wave([rows, m], 3.3, &d);
+    let projected = || x.clone().matmul(w.clone()) + b.clone().unsqueeze::<2>();
+
+    let expected = gelu(projected()) + r.clone();
+    let epilogue = fused::Epilogue {
+        bias: Some(&b),
+        gelu: true,
+        residual: Some(&r),
+        ..fused::Epilogue::default()
+    };
+    let max = max_abs(
+        expected,
+        fused::linear(&x, &w, epilogue).expect("GELU / residual"),
+    );
+    assert!(max < 1e-5, "bias + GELU + residual epilogue: {max}");
+
+    let freqs: Vec<f32> = (0..32).map(|i| 10000f32.powf(-(i as f32) / 32.0)).collect();
+    let rope = AxisRope::<Cuda>::new(&freqs, tokens, heads, &d);
+    let y = projected().reshape([groups, tokens, m]);
+    let expected = Tensor::cat(
+        vec![
+            rope.query.apply(y.clone().narrow(2, 0, width)),
+            rope.key.apply(y.clone().narrow(2, width, width)),
+            y.narrow(2, 2 * width, width),
+        ],
+        2,
+    )
+    .reshape([rows, m]);
+    let table = rope.packed.as_ref().expect("rotary table on CUDA");
+    let epilogue = fused::Epilogue {
+        bias: Some(&b),
+        rotary: Some((table, width)),
+        ..fused::Epilogue::default()
+    };
+    let max = max_abs(expected, fused::linear(&x, &w, epilogue).expect("rotary"));
+    assert!(max < 1e-5, "rotary epilogue: {max}");
 }
 
 #[test]
@@ -207,13 +281,22 @@ fn cuda_custom_gemm_matches_burn_matmul() {
         if bias {
             expected = expected + b.clone().unsqueeze::<2>();
         }
-        let actual = fused::linear(&x, &w, bias.then_some(&b)).expect("custom GEMM");
+        let actual = fused::linear(
+            &x,
+            &w,
+            fused::Epilogue {
+                bias: bias.then_some(&b),
+                ..fused::Epilogue::default()
+            },
+        )
+        .expect("custom GEMM");
         let max = max_abs(expected, actual);
         assert!(max < 1e-5, "custom GEMM [{rows}, {k}]·[{k}, {m}]: {max}");
     }
     let x = wave([4, 16], 0.0, &d);
-    assert!(fused::linear(&x, &wave([16, 8], 0.0, &d), None).is_none());
-    assert!(fused::linear(&wave([4, 12], 0.0, &d), &wave([12, 128], 0.0, &d), None).is_none());
+    let none = fused::Epilogue::default;
+    assert!(fused::linear(&x, &wave([16, 8], 0.0, &d), none()).is_none());
+    assert!(fused::linear(&wave([4, 12], 0.0, &d), &wave([12, 128], 0.0, &d), none()).is_none());
 }
 
 #[test]

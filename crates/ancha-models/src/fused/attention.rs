@@ -2,8 +2,13 @@
 //! 64-key tiles with an online softmax, so scores never leave registers / shared memory.
 //! 256 units as 16×16; unit `(tx, ty)` owns query rows `4ty..4ty+4`, score columns
 //! `tx + 16j` and output channels `4tx..4tx+4`. Shared memory is 3×16 KiB (Pascal's 48 KiB
-//! limit); the key buffer is reused for the transposed probabilities, and both are
-//! XOR-swizzled on 16-byte chunks so the vector reads and writes are bank-conflict free.
+//! limit); the key buffer is reused for the transposed probabilities. Keys are XOR-swizzled on
+//! 16-byte chunks so their vector reads are bank-conflict free; the next key / value tile is
+//! loaded into registers while the current one is processed.
+//!
+//! Queries, keys and values are column ranges of `[groups, tokens, columns]` tensors (head `h`
+//! at `offset + 64h`), so one packed projection output feeds the kernel without copies.
+//! The gated variant scales each output row by `sigmoid(gate)` read from the same tensor.
 use burn_cubecl::{
     CubeRuntime, kernel::into_contiguous, ops::numeric::empty_device_contiguous_dtype,
     tensor::CubeTensor,
@@ -16,11 +21,18 @@ const TILE: usize = 64;
 const MASKED: f32 = -1.0e30;
 
 #[cube(launch_unchecked)]
+#[allow(clippy::too_many_arguments)]
 fn flash_attention<F: Float>(
     q: &Tensor<Vector<F, Const<4>>>,
     k: &Tensor<Vector<F, Const<4>>>,
     v: &Tensor<Vector<F, Const<4>>>,
+    gates: &Tensor<F>,
     out: &mut Tensor<Vector<F, Const<4>>>,
+    q_col: u32,
+    k_col: u32,
+    v_col: u32,
+    gate_col: u32,
+    #[comptime] gated: bool,
 ) {
     let tokens = q.shape(1);
     let tx = UNIT_POS_X as usize;
@@ -28,11 +40,11 @@ fn flash_attention<F: Float>(
     let head = CUBE_POS_Y as usize;
     let group = CUBE_POS_Z as usize;
     let first = CUBE_POS_X as usize * 64;
-    // Strides are in scalars, indices in 4-wide vectors.
-    let q_base = (group * q.stride(0) + head * q.stride(2)) / 4;
-    let k_base = (group * k.stride(0) + head * k.stride(2)) / 4;
-    let v_base = (group * v.stride(0) + head * v.stride(2)) / 4;
-    let o_base = (group * out.stride(0) + head * out.stride(2)) / 4;
+    // Strides and column offsets are in scalars, indices in 4-wide vectors.
+    let q_base = (group * q.stride(0) + q_col as usize) / 4 + head * 16 + tx;
+    let k_base = (group * k.stride(0) + k_col as usize) / 4 + head * 16 + tx;
+    let v_base = (group * v.stride(0) + v_col as usize) / 4 + head * 16 + tx;
+    let o_base = (group * out.stride(0) + head * out.stride(2)) / 4 + tx;
     let q_row = q.stride(1) / 4;
     let k_row = k.stride(1) / 4;
     let v_row = v.stride(1) / 4;
@@ -49,9 +61,24 @@ fn flash_attention<F: Float>(
         let t = first + row;
         let mut value = zero;
         if t < tokens {
-            value = q[q_base + t * q_row + tx];
+            value = q[q_base + t * q_row];
         }
         qs[row * 16 + tx] = value;
+    }
+
+    // Key / value rows `16it + ty` of the next tile, staged in registers so their global
+    // latency overlaps the current tile's arithmetic.
+    let mut key_next = Array::<Vector<F, Const<4>>>::new(4usize);
+    let mut value_next = Array::<Vector<F, Const<4>>>::new(4usize);
+    #[unroll]
+    for it in 0..4usize {
+        let t = it * 16 + ty;
+        key_next[it] = zero;
+        value_next[it] = zero;
+        if t < tokens {
+            key_next[it] = k[k_base + t * k_row];
+            value_next[it] = v[v_base + t * v_row];
+        }
     }
 
     let mut acc = Array::<Vector<F, Const<4>>>::new(4usize);
@@ -73,18 +100,22 @@ fn flash_attention<F: Float>(
         #[unroll]
         for it in 0..4usize {
             let row = it * 16 + ty;
-            let t = start + row;
-            let mut key = zero;
-            let mut value = zero;
-            if t < tokens {
-                key = k[k_base + t * k_row + tx];
-                value = v[v_base + t * v_row + tx];
-            }
             // Key row `row` keeps chunk `c` at `c ^ (row % 16)`; here row % 16 == ty.
-            ks[row * 16 + (tx ^ ty)] = key;
-            vs[row * 16 + tx] = value;
+            ks[row * 16 + (tx ^ ty)] = key_next[it];
+            vs[row * 16 + tx] = value_next[it];
         }
         sync_cube();
+        let next = start + 64;
+        #[unroll]
+        for it in 0..4usize {
+            let t = next + it * 16 + ty;
+            key_next[it] = zero;
+            value_next[it] = zero;
+            if t < tokens {
+                key_next[it] = k[k_base + t * k_row];
+                value_next[it] = v[v_base + t * v_row];
+            }
+        }
 
         #[unroll]
         for e in 0..16usize {
@@ -142,7 +173,8 @@ fn flash_attention<F: Float>(
             acc[i] = acc[i] * Vector::new(scale);
         }
 
-        // All score reads of the key buffer are complete; reuse it for Pᵀ.
+        // All score reads of the key buffer are complete; reuse it for Pᵀ. Reads below are
+        // warp-wide broadcasts, so rows stay unswizzled; the 4 writes per tile take the conflicts.
         sync_cube();
         #[unroll]
         for j in 0..4usize {
@@ -151,13 +183,12 @@ fn flash_attention<F: Float>(
             p[1] = s[4 + j];
             p[2] = s[8 + j];
             p[3] = s[12 + j];
-            // Pᵀ row `c` keeps row chunk `r` at `r ^ (c % 16)`; here c % 16 == tx.
-            ks[(tx + 16 * j) * 16 + (ty ^ tx)] = p;
+            ks[(tx + 16 * j) * 16 + ty] = p;
         }
         sync_cube();
 
         for c in 0..64usize {
-            let p = ks[c * 16 + (ty ^ (c % 16))];
+            let p = ks[c * 16 + ty];
             let value = vs[c * 16 + tx];
             #[unroll]
             for i in 0..4usize {
@@ -175,7 +206,13 @@ fn flash_attention<F: Float>(
         total += plane_shuffle_xor(total, 8);
         let t = first + ty * 4 + i;
         if t < tokens {
-            out[o_base + t * o_row + tx] = acc[i] * Vector::new(F::new(1.0) / total);
+            let mut scale = F::new(1.0) / total;
+            if gated {
+                let gate =
+                    gates[group * gates.stride(0) + t * gates.stride(1) + gate_col as usize + head];
+                scale /= F::new(1.0) + F::exp(F::new(0.0) - gate);
+            }
+            out[o_base + t * o_row] = acc[i] * Vector::new(scale);
         }
     }
 }
@@ -183,40 +220,69 @@ fn flash_attention<F: Float>(
 /// Last axis dense and outer strides in whole 4-wide vectors, as the kernel reads them.
 fn vector_ready<R: CubeRuntime>(tensor: CubeTensor<R>) -> CubeTensor<R> {
     let strides = tensor.meta.strides();
-    if strides[3] == 1 && strides[..3].iter().all(|s| s % 4 == 0) {
+    if strides[2] == 1 && strides[..2].iter().all(|s| s % 4 == 0) {
         tensor
     } else {
         into_contiguous(tensor)
     }
 }
 
-/// `softmax(q·kᵀ)·v` over `[groups, tokens, heads, 64]` f32 tensors, `q` pre-scaled;
-/// the output has the same layout.
+/// Column offsets (scalars) of q, k, v and, when gated, of the per-head gate logits in `q`.
+pub struct Columns {
+    pub q: usize,
+    pub k: usize,
+    pub v: usize,
+    pub gate: Option<usize>,
+}
+
+/// `softmax(q·kᵀ)·v` per `(group, head)`; `q`, `k`, `v` are `[groups, tokens, columns]` f32 with
+/// head `h` at `offset + 64h`, `q` pre-scaled. With a gate column, output rows are scaled by
+/// `sigmoid(q[.., gate + h])`. Returns `[groups, tokens, heads, 64]`.
 pub fn launch<R: CubeRuntime>(
-    q: CubeTensor<R>,
-    k: CubeTensor<R>,
-    v: CubeTensor<R>,
+    [q, k, v]: [CubeTensor<R>; 3],
+    heads: usize,
+    columns: Columns,
 ) -> CubeTensor<R> {
     let shape = q.meta.shape().clone();
-    let (groups, tokens, heads) = (shape[0], shape[1], shape[2]);
+    let (groups, tokens) = (shape[0], shape[1]);
+    let fits = |t: &CubeTensor<R>, offset: usize, width: usize| {
+        let s = t.meta.shape();
+        s.num_dims() == 3 && s[0] == groups && s[1] == tokens && offset + width <= s[2]
+    };
+    let span = heads * HEAD_DIM;
     assert!(
-        shape[3] == HEAD_DIM && *k.meta.shape() == shape && *v.meta.shape() == shape,
-        "fused attention expects equal [groups, tokens, heads, {HEAD_DIM}] inputs"
+        [columns.q, columns.k, columns.v].iter().all(|c| c % 4 == 0)
+            && fits(&q, columns.q, span)
+            && fits(&k, columns.k, span)
+            && fits(&v, columns.v, span)
+            && columns.gate.is_none_or(|gate| fits(&q, gate, heads)),
+        "fused attention: q / k / v column ranges do not fit [{groups}, {tokens}, ..]"
     );
     let (q, k, v) = (vector_ready(q), vector_ready(k), vector_ready(v));
-    let out = empty_device_contiguous_dtype(q.client.clone(), q.device.clone(), shape, q.dtype);
+    let out = empty_device_contiguous_dtype(
+        q.client.clone(),
+        q.device.clone(),
+        [groups, tokens, heads, HEAD_DIM].into(),
+        q.dtype,
+    );
     let client = q.client.clone();
     let count = CubeCount::Static(tokens.div_ceil(TILE) as u32, heads as u32, groups as u32);
-    // SAFETY: every index is bounded by `tokens` and the [.., heads, 64] shape checked above.
+    // SAFETY: tokens bound every row index; the column ranges were checked to fit above.
     unsafe {
         flash_attention::launch_unchecked::<f32, R>(
             &client,
             count,
             CubeDim::new_2d(16, 16),
-            q.into_tensor_arg(),
+            q.clone().into_tensor_arg(),
             k.into_tensor_arg(),
             v.into_tensor_arg(),
+            q.into_tensor_arg(),
             out.clone().into_tensor_arg(),
+            columns.q as u32,
+            columns.k as u32,
+            columns.v as u32,
+            columns.gate.unwrap_or(0) as u32,
+            columns.gate.is_some(),
         );
     }
     out
