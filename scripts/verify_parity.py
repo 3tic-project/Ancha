@@ -6,6 +6,7 @@ The released Rust runtime does not import or execute this script.
 """
 import argparse
 import importlib
+import importlib.util
 import json
 import platform
 import sys
@@ -25,6 +26,7 @@ def main():
     p.add_argument("--input", type=Path, required=True)
     p.add_argument("--rust-output", type=Path, required=True)
     p.add_argument("--report", type=Path, required=True)
+    p.add_argument("--hyperace-source", type=Path)
     p.add_argument("--threads", type=int, default=6)
     args = p.parse_args()
     torch.set_num_threads(args.threads)
@@ -40,7 +42,15 @@ def main():
                   stft_win_length=c["n_fft"], stft_normalized=False,
                   zero_dc=c["zero_dc"], mask_estimator_depth=c["mask_depth"],
                   mlp_expansion_factor=c["mask_expansion"])
-    if c["family"] == "bs-roformer":
+    if c["family"] == "hyperace-v2":
+        assert args.hyperace_source, "supply pinned --hyperace-source"
+        spec = importlib.util.spec_from_file_location("hyperace_reference", args.hyperace_source)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        cls = module.BSRoformer
+        common.pop("zero_dc")
+        common["freqs_per_bands"] = tuple(map(len, c["bands"]))
+    elif c["family"] == "bs-roformer":
         cls = importlib.import_module("models.bs_roformer.bs_roformer").BSRoformer
         common["freqs_per_bands"] = tuple(map(len, c["bands"]))
     else:

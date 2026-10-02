@@ -10,6 +10,7 @@ publish = false
 default = []
 wgpu = ["burn/wgpu", "burn/fusion"]
 convert = ["burn-store/pytorch"]
+onnx = ["dep:onnx-rs"]
 
 [dependencies]
 anyhow.workspace = true
@@ -19,6 +20,7 @@ serde_json.workspace = true
 safetensors = "=0.8.0"
 burn-store = { version = "=0.21.0", default-features = false, features = ["std", "safetensors"] }
 sha2 = "0.10"
+onnx-rs = { version = "=0.1.2", optional = true }
 
 [dev-dependencies]
 ancha-kernels = { path = "../ancha-kernels" }

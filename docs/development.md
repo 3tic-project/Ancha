@@ -8,7 +8,7 @@ macOS 用 `accelerate` feature 链接系统 Accelerate BLAS。`wgpu` 为可选 G
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --features convert --locked -- -D warnings
 cargo test --workspace --features convert --locked
-cargo build --release --features convert,wgpu,accelerate --locked # macOS
+cargo build --release --features convert,wgpu,accelerate,onnx,cpu-opt --locked # macOS
 ```
 
 CI 使用原创合成音频与微型权重，不下载真实权重或商业歌曲。GPU 编译检查不等于 GPU 执行测试。
@@ -45,7 +45,8 @@ target/release/ancha convert NO_TRACK/models/becruily_deux.ckpt \
   --preset deux --config configs/deux.json --output NO_TRACK/models/deux
 ```
 
-自定义 config 只能表达 schema 1 中已实现的结构；不能靠改 JSON 获得 HyperACE 支持。
+自定义 config 只能表达 schema 1 已实现的结构。HyperACE v2 需显式 `family=hyperace-v2`，
+维度 256、62 bands、完整空间分支及对应权重；推荐使用专用 preset。
 转换工具对所有张量转 F32，校验 shape 与 dtype，并运行 CPU 架构构造检查。
 本地模型包并不包含分发权重的许可授权。
 
@@ -60,3 +61,21 @@ GPU 参数 tuning 可对比 `--query-tile 128 --group-tile 4` 与 `512 / 16`，�
 
 工作区无远端配置。提交前执行 `git check-ignore NO_TRACK/...` 和
 `git ls-files`，确认原始音频、参考工程、完整日志与权重未进入索引。
+
+## HyperACE / MDX 新流程
+
+完整功能和 CPU 优化构建：
+
+```bash
+cargo build --release --locked --features convert,wgpu,accelerate,onnx,cpu-opt
+cargo clippy --workspace --all-targets --locked --features convert,wgpu,accelerate,onnx,cpu-opt -- -D warnings
+cargo test --workspace --locked --features convert,wgpu,accelerate,onnx,cpu-opt
+```
+
+跨平台 CI 使用 `convert,onnx,cpu-opt`；macOS 才添加 accelerate。
+28 个合成测试新增空间 InstanceNorm、half-pixel resize、频率 shuffle、HyperACE preset、
+ONNX 调度/BN folding/拒绝规则、batch 轴和 MDX DSP / 取消保护，不读取真实权重。
+独立真实模型验证、下载、MDX 同二进制消融和批量设置见 [适配文档](adapters.md)。
+CPU 可在启动前设置 `RAYON_NUM_THREADS=4 VECLIB_MAXIMUM_THREADS=1`，避免卷积线程与 BLAS
+线程叠加过多；测量时同时记录 feature、环境和实际耗时，不把线程设置值当作监测到的线程数。
+参考环境安装 `scripts/requirements-mdx-parity.txt`，Rust 发布运行时不依赖它。

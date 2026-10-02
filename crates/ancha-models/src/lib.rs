@@ -2,6 +2,10 @@
 pub mod config;
 #[cfg(feature = "convert")]
 pub mod convert;
+mod hyperace;
+#[cfg(feature = "onnx")]
+pub mod mdx;
 pub mod network;
 pub mod roformer;
+pub mod spatial;
 pub mod weights;

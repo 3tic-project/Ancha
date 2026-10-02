@@ -36,3 +36,18 @@ Leap Xe 权重来源为
 [pcunwa/BS-Roformer-Leap](https://huggingface.co/pcunwa/BS-Roformer-Leap/tree/4e47d6662ae82eaa8b4ac4329fe66099a843b48e)。
 固定模型修订未明确声明权重许可；代码的 MIT 不扩展至这些权重。
 Deux 的模型卡标注 CC-BY-NC-4.0，模型包需保留作者来源与许可。NO_TRACK 中的歌曲仅用于用户授权的本地验证。
+
+HyperACE 的 Rust 适配根据
+[pcunwa/BS-Roformer-HyperACE 固定源码](https://huggingface.co/pcunwa/BS-Roformer-HyperACE/tree/5b1f8283125d5e4a3614d0e3635a636e09c84059)
+重新实现，源码仅用于 NO_TRACK 中的独立参考。v2 voc/inst 的专用 bs_roformer.py 摘要相同；
+不能因为其可经 MSST 入口运行就把该专用作者文件、checkpoint 归入 MSST 的 MIT 许可。
+下载与转换脚本保留作者来源，权重许可状态仍为未明确声明，不随 Git 分发。
+
+经典 MDX 的模型、SHA256、任务标签及 UVR 参数从用户提供的
+`NO_TRACK/lightweight-separation-lab/model-manifest.json` 和 UVR 固定修订
+[`5517e0cf0d1acd16a1618eeedec596957523f9e1`](https://github.com/Anjok07/ultimatevocalremovergui/tree/5517e0cf0d1acd16a1618eeedec596957523f9e1)
+核对。图执行器和 DSP 是 Rust 重实现；独立参考脚本仅从已下载的 UVR 文件读取原始方法。
+公开权重由 [TRvlvr/model_repo](https://github.com/TRvlvr/model_repo/releases/tag/all_public_uvr_models)
+单独提供，不因 UVR GUI 的代码许可而推定权重许可。
+onnx-rs 0.1.2 为 MIT。可选 CPU SIMD/并行计算由 Burn NdArray 的 SIMD/Rayon 实现提供，
+准确依赖、版本及许可证见 Cargo.lock 和上游 crate 元数据。

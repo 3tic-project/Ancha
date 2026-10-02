@@ -67,12 +67,16 @@ pub fn convert_checkpoint(
         let manifest = Manifest {
             schema_version: 1,
             model_id: model_id.into(),
-            config,
+            config: config.clone(),
             weights_sha256: sha256_file(&weights)?,
             checkpoint_sha256: sha256_file(source)?,
             source_url,
             weight_license: license,
-            forward_revision: "MSST/84b1eac0887756b4f1a9d7a1ff49105939749ed2".into(),
+            forward_revision: if config.family == crate::config::Family::HyperaceV2 {
+                "HyperACE/5b1f8283125d5e4a3614d0e3635a636e09c84059;bs_roformer.py=48571e20d70ea8f245cffc6afbfa279f62042e7ba16fbaa3fe43dd2cbc25e1db".into()
+            } else {
+                "MSST/84b1eac0887756b4f1a9d7a1ff49105939749ed2".into()
+            },
         };
         manifest.validate()?;
         std::fs::write(

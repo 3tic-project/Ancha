@@ -1,5 +1,8 @@
 # 本机测试与性能记录
 
+本文保留首次 Leap / Deux 交付的测量。后续 HyperACE / MDX 的新功能、28 项测试与
+CPU/GPU 优化结果见 [新增适配性能记录](adapters-performance.md)。
+
 2026-10-02，本机 Intel i5-12400（6 核 / 12 线程）、64 GB RAM、AMD Radeon RX 580 8 GB，
 macOS 15.7.7 / x86_64，Rust 1.92.0、Burn 0.21.0、CubeCL 0.10.0。
 release 二进制启用 `convert,wgpu,accelerate`；GPU 使用 WGPU 的 Metal adapter。
@@ -49,7 +52,7 @@ PyTorch 2.2.2 / NumPy 1.26.4、同一 132300-sample WAV。为隔离 forward，�
 
 以上均通过 max_abs < 1e-3 且 waveform SNR > 50 dB 的门槛。
 waveform SNR 是 Rust 与参考实现之间的数值一致性；没有干净源真值，因此没有 SDR、
-人声提取质量分数或数据集平均质量结论。完整歌曲、Leap Xe inst、HyperACE 和 CUDA 尚未验收。
+人声提取质量分数或数据集平均质量结论。该阶段完整歌曲、Leap Xe inst、HyperACE 和 CUDA 尚未验收；HyperACE 的后续验收见新报告。
 
 ## 已采用的优化与消融
 

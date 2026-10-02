@@ -13,6 +13,6 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo fmt --all --check
-      - run: cargo clippy --workspace --all-targets --features convert --locked -- -D warnings
-      - run: cargo test --workspace --features convert --locked
-      - run: cargo check --features wgpu --locked
+      - run: cargo clippy --workspace --all-targets --features convert,onnx,cpu-opt --locked -- -D warnings
+      - run: cargo test --workspace --features convert,onnx,cpu-opt --locked
+      - run: cargo check --features wgpu,onnx,cpu-opt --locked

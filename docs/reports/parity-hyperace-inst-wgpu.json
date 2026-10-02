@@ -1,0 +1,22 @@
+{
+  "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+  "source_revision": "HyperACE/5b1f8283125d5e4a3614d0e3635a636e09c84059;bs_roformer.py=48571e20d70ea8f245cffc6afbfa279f62042e7ba16fbaa3fe43dd2cbc25e1db",
+  "torch": "2.2.2",
+  "numpy": "1.26.4",
+  "platform": "macOS-15.7.7-x86_64-i386-64bit",
+  "threads": 6,
+  "samples": 132300,
+  "sample_rate": 44100,
+  "model_id": "hyperace-v2-inst",
+  "pytorch_forward_seconds": 7.838906807824969,
+  "comparisons": [
+    {
+      "stem": "instrumental",
+      "max_abs": 1.0266900062561035e-05,
+      "mean_abs": 1.4833277446685995e-07,
+      "waveform_snr_db": 115.44865008992495,
+      "status": "passed"
+    }
+  ],
+  "status": "passed"
+}

@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "ancha_version": "0.1.0",
+  "platform": "macos-x86_64",
+  "backend": "wgpu",
+  "device": "DiscreteGpu(0)",
+  "precision": "f32",
+  "dsp_backend": "realfft-rubato",
+  "build_features": [
+    "onnx",
+    "wgpu",
+    "accelerate",
+    "convert",
+    "simd",
+    "cpu-opt"
+  ],
+  "cpu_thread_environment": {},
+  "model_id": "mdx-inst-hq-2",
+  "weights_sha256": "197f8ab296df850f961e68c595f6649acb7d9e621b5600b460f3458967299112",
+  "input_pcm_sha256": "e1168f5feb259561d9853729e564c2f5475313563bd3802100d56fa08fa46f05",
+  "start_seconds": 0.0,
+  "duration_requested_seconds": null,
+  "audio_seconds": 30.0,
+  "sample_rate": 44100,
+  "samples_per_channel": 1323000,
+  "channels": 2,
+  "task": "all_vocals",
+  "profile": "uvr-single-pass",
+  "effective_config": {
+    "model_id": "mdx-inst-hq-2",
+    "weights_sha256": "197f8ab296df850f961e68c595f6649acb7d9e621b5600b460f3458967299112",
+    "task": "all_vocals",
+    "predicted": "instrumental",
+    "residual": "all_vocals",
+    "sample_rate": 44100,
+    "n_fft": 6144,
+    "hop": 1024,
+    "bins": 3072,
+    "frames": 256,
+    "compensate": 1.033,
+    "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1"
+  },
+  "chunk_samples": 261120,
+  "step_samples": 254976,
+  "overlap_fraction": null,
+  "denoise": false,
+  "optimized": true,
+  "batch_size": 2,
+  "graph_nodes": 178,
+  "folded_bn": 5,
+  "chunks": 6,
+  "skipped_unused_tail_chunks": 1,
+  "model_forwards": 3,
+  "stems": [
+    {
+      "name": "instrumental",
+      "origin": "predicted",
+      "peak": 1.1969045,
+      "rms": 0.21583826291777217
+    },
+    {
+      "name": "all_vocals",
+      "origin": "residual",
+      "peak": 1.1248497,
+      "rms": 0.17907811220663764
+    }
+  ],
+  "residual_reconstruction_max_abs": 5.9604645e-08,
+  "timings": {
+    "model_load_seconds": 0.285104615,
+    "decode_seconds": 0.014559163,
+    "resample_seconds": 0.000867525,
+    "stft_seconds": 0.25337971800000003,
+    "model_seconds": 21.671391163000003,
+    "istft_seconds": 0.151153974,
+    "overlap_seconds": 0.012896539,
+    "write_seconds": 0.046833337,
+    "total_seconds": 22.469307326
+  },
+  "rtf": 0.7489769108666666
+}

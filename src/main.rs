@@ -16,7 +16,10 @@ use std::{
 };
 
 #[derive(Parser)]
-#[command(version, about = "Offline native Rust RoFormer audio separation")]
+#[command(
+    version,
+    about = "Offline native Rust RoFormer and classic MDX audio separation"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -32,7 +35,7 @@ enum Command {
     },
     /// Inspect and validate a model package manifest.
     Inspect { model: PathBuf },
-    /// Separate audio into float32 vocals.wav and instrumental.wav.
+    /// Separate audio into float32 stems. Accepts a RoFormer package or classic MDX ONNX.
     Separate(SeparateArgs),
     /// Compare the original scalar reference with tiled GEMM attention.
     Bench {
@@ -97,6 +100,18 @@ struct SeparateArgs {
     /// Host PCM limit at both source and output rates (1 hour at 44.1 kHz by default).
     #[arg(long, default_value_t = 3600)]
     max_seconds: usize,
+    /// MDX only: run both x and -x as in UVR denoise mode.
+    #[arg(long)]
+    mdx_denoise: bool,
+    /// MDX only: fractional overlap (0..=0.95); omitted uses UVR default step.
+    #[arg(long)]
+    mdx_overlap: Option<f64>,
+    /// Disable MDX BN precomputation/folding and unused-tail pruning for comparison.
+    #[arg(long)]
+    mdx_no_optimize: bool,
+    /// MDX only: fixed-shape chunks per forward (1..=4). Increases device memory.
+    #[arg(long, default_value_t = 1)]
+    mdx_batch_size: usize,
 }
 
 fn main() {
@@ -109,6 +124,20 @@ fn main() {
 fn run() -> Result<()> {
     match Cli::parse().command {
         Command::Inspect { model } => {
+            if model.extension().is_some_and(|v| v == "onnx") {
+                #[cfg(feature = "onnx")]
+                {
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&ancha_models::mdx::MdxConfig::identify(
+                            &model
+                        )?)?
+                    );
+                    return Ok(());
+                }
+                #[cfg(not(feature = "onnx"))]
+                anyhow::bail!("ONNX support is not built; use --features onnx");
+            }
             println!("{}", serde_json::to_string_pretty(&read_manifest(&model)?)?)
         }
         Command::Doctor { backend, device } => match backend {
@@ -132,6 +161,19 @@ fn run() -> Result<()> {
             let cancelled = Arc::new(AtomicBool::new(false));
             let flag = cancelled.clone();
             ctrlc::set_handler(move || flag.store(true, std::sync::atomic::Ordering::Relaxed))?;
+            if args.model.extension().is_some_and(|v| v == "onnx") {
+                #[cfg(feature = "onnx")]
+                return run_mdx(args, &cancelled);
+                #[cfg(not(feature = "onnx"))]
+                anyhow::bail!("ONNX support is not built; use --features onnx");
+            }
+            ensure!(
+                !args.mdx_denoise
+                    && args.mdx_overlap.is_none()
+                    && !args.mdx_no_optimize
+                    && args.mdx_batch_size == 1,
+                "MDX flags require an ONNX model"
+            );
             let options = SeparateOptions {
                 input: args.input,
                 model: args.model,
@@ -221,7 +263,9 @@ fn run() -> Result<()> {
                 match preset.as_str() {
                 "leap-xe-voc" | "leap-xe-inst" => (ModelConfig::leap_xe(preset=="leap-xe-inst"),
                     "https://huggingface.co/pcunwa/BS-Roformer-Leap/tree/4e47d6662ae82eaa8b4ac4329fe66099a843b48e".into(),"not specified by checkpoint author".into()),
-                _ => anyhow::bail!("unknown preset; use leap-xe-voc / leap-xe-inst, or supply --config"),
+                "hyperace-v2-voc" | "hyperace-v2-inst" => (ModelConfig::hyperace_v2(preset=="hyperace-v2-inst"),
+                    "https://huggingface.co/pcunwa/BS-Roformer-HyperACE/tree/5b1f8283125d5e4a3614d0e3635a636e09c84059".into(),"not specified by checkpoint author".into()),
+                _ => anyhow::bail!("unknown preset; use leap-xe-voc / leap-xe-inst / hyperace-v2-voc / hyperace-v2-inst, or supply --config"),
             }
             };
             let m = ancha_models::convert::convert_checkpoint(
@@ -263,5 +307,61 @@ fn doctor<B: Backend>(device: &B::Device) -> Result<()> {
         "{}",
         serde_json::json!({"status":"passed","backend":B::name(device),"precision":"f32","platform":format!("{}-{}",std::env::consts::OS,std::env::consts::ARCH),"scope":"2x2 matmul and readback; not full-model certification"})
     );
+    Ok(())
+}
+
+#[cfg(feature = "onnx")]
+fn run_mdx(args: SeparateArgs, cancelled: &AtomicBool) -> Result<()> {
+    use ancha::mdx_runtime::{MdxOptions, separate_mdx};
+    ensure!(
+        args.chunk_samples.is_none()
+            && args.overlap.is_none()
+            && !args.flatten_linear
+            && args.query_tile == 128
+            && args.group_tile == 4,
+        "RoFormer context/attention flags do not apply to MDX; use --mdx-overlap"
+    );
+    let options = MdxOptions {
+        input: args.input,
+        model: args.model,
+        output: args.output,
+        decode: DecodeOptions {
+            start_seconds: args.start,
+            duration_seconds: args.duration,
+            max_samples_per_channel: args
+                .max_seconds
+                .checked_mul(44100)
+                .ok_or_else(|| anyhow::anyhow!("host limit overflow"))?,
+        },
+        overlap: args.mdx_overlap,
+        denoise: args.mdx_denoise,
+        optimized: !args.mdx_no_optimize,
+        batch_size: args.mdx_batch_size,
+    };
+    let progress = |n, total| eprintln!("separated MDX chunk {n}/{total}");
+    let report = match args.backend {
+        BackendChoice::Cpu => separate_mdx::<NdArray<f32>>(
+            &options,
+            &Default::default(),
+            "cpu-ndarray",
+            cancelled,
+            progress,
+        )?,
+        BackendChoice::Wgpu => {
+            #[cfg(feature = "wgpu")]
+            {
+                separate_mdx::<burn::backend::Wgpu>(
+                    &options,
+                    &burn::backend::wgpu::WgpuDevice::DiscreteGpu(args.device),
+                    "wgpu",
+                    cancelled,
+                    progress,
+                )?
+            }
+            #[cfg(not(feature = "wgpu"))]
+            anyhow::bail!("WGPU support is not built; use --features wgpu");
+        }
+    };
+    println!("{}", serde_json::to_string_pretty(&report)?);
     Ok(())
 }

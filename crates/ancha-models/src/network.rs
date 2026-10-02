@@ -1,5 +1,6 @@
 use crate::{
     config::{Family, Manifest, ModelConfig},
+    hyperace::Segm,
     roformer::{AttentionPlan, SourceNorm, Transformer},
     weights::{self, Weights},
 };
@@ -34,6 +35,7 @@ pub struct Roformer<B: Backend> {
     axes: Vec<Axis<B>>,
     final_norm: Option<SourceNorm<B>>,
     masks: Vec<Vec<MaskMlp<B>>>,
+    segmentation: Option<Segm<B>>,
     widths: Vec<usize>,
     config: ModelConfig,
     indices: Tensor<B, 1, Int>,
@@ -105,7 +107,7 @@ impl<B: Backend> Roformer<B> {
             let mut mask_bands = Vec::new();
             for (i, &width) in widths.iter().enumerate() {
                 let mut sizes = vec![c.dim];
-                let hidden_layers = if c.family == Family::BsRoformer {
+                let hidden_layers = if c.family != Family::MelBandRoformer {
                     c.mask_depth - 1
                 } else {
                     c.mask_depth
@@ -129,6 +131,11 @@ impl<B: Backend> Roformer<B> {
             }
             masks.push(mask_bands);
         }
+        let segmentation = if c.family == Family::HyperaceV2 {
+            Some(Segm::load(&mut w, "mask_estimators.0.segm", device)?)
+        } else {
+            None
+        };
         let tensor_count = w.finish()?;
         let bins = c.n_fft / 2 + 1;
         let indices: Vec<i64> = c
@@ -147,6 +154,7 @@ impl<B: Backend> Roformer<B> {
             axes,
             final_norm,
             masks,
+            segmentation,
             widths,
             config: c.clone(),
             tensor_count,
@@ -225,7 +233,12 @@ impl<B: Backend> Roformer<B> {
                     .mul(sigmoid(z.narrow(2, width, width)));
                 band_masks.push(value);
             }
-            stem_masks.push(Tensor::cat(band_masks, 2).reshape([1, 1, t, total]));
+            let mut mask = Tensor::cat(band_masks, 2);
+            if let Some(segm) = &self.segmentation {
+                let spatial = segm.forward(x.clone().permute([0, 3, 1, 2]), cancelled)?;
+                mask = mask + spatial.permute([0, 2, 3, 1]).reshape([1, t, total]);
+            }
+            stem_masks.push(mask.reshape([1, 1, t, total]));
         }
         let ns = self.masks.len();
         let nr = total / 2;

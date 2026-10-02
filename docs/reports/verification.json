@@ -22,5 +22,6 @@
     "clean-stem SDR",
     "full 277-second song",
     "other hardware/platforms"
-  ]
+  ],
+  "scope": "Initial Leap/Deux delivery; later HyperACE/MDX validation is recorded in adapters-verification.json"
 }

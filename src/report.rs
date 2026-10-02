@@ -50,6 +50,8 @@ pub struct RunReport {
     pub group_tile: usize,
     pub linear_layout: String,
     pub build_features: Vec<String>,
+    #[serde(default)]
+    pub cpu_thread_environment: std::collections::BTreeMap<String, String>,
     pub estimated_time_attention_score_bytes: usize,
     pub residual_reconstruction_max_abs: Option<f32>,
     pub stems: Vec<StemReport>,

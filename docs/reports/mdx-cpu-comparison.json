@@ -1,0 +1,97 @@
+{
+  "scope": "serial native MDX CPU ablation, one observation per setting; graph optimization/context fixed; baseline lacks simd/cpu-opt",
+  "model_id": "mdx-kara-2",
+  "weights_sha256": "bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4",
+  "samples": 132300,
+  "runs": [
+    {
+      "name": "mdx-cpu-reference-final",
+      "build_features": [
+        "onnx",
+        "wgpu",
+        "accelerate",
+        "convert"
+      ],
+      "cpu_thread_environment": {
+        "RAYON_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "total_seconds": 76.431827955,
+      "model_seconds": 76.260840527,
+      "chunks": 1,
+      "batch_size": 1
+    },
+    {
+      "name": "mdx-cpu-opt-1",
+      "build_features": [
+        "onnx",
+        "wgpu",
+        "accelerate",
+        "convert",
+        "simd",
+        "cpu-opt"
+      ],
+      "cpu_thread_environment": {
+        "RAYON_NUM_THREADS": "1",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "total_seconds": 58.255389041,
+      "model_seconds": 58.074472376,
+      "chunks": 1,
+      "batch_size": 1
+    },
+    {
+      "name": "mdx-cpu-opt-4",
+      "build_features": [
+        "onnx",
+        "wgpu",
+        "accelerate",
+        "convert",
+        "simd",
+        "cpu-opt"
+      ],
+      "cpu_thread_environment": {
+        "RAYON_NUM_THREADS": "4",
+        "VECLIB_MAXIMUM_THREADS": "1"
+      },
+      "total_seconds": 17.704066042,
+      "model_seconds": 17.52608767,
+      "chunks": 1,
+      "batch_size": 1
+    }
+  ],
+  "one_thread_speedup": 1.312013003658897,
+  "four_threads_speedup": 4.317190625796243,
+  "waveform_comparisons": [
+    {
+      "run": "mdx-cpu-opt-1",
+      "stem": "karaoke_mix",
+      "max_abs": 5.364418029785156e-07,
+      "waveform_snr_db": 127.64329652708224
+    },
+    {
+      "run": "mdx-cpu-opt-1",
+      "stem": "lead_vocals",
+      "max_abs": 5.364418029785156e-07,
+      "waveform_snr_db": 126.59823386475166
+    },
+    {
+      "run": "mdx-cpu-opt-4",
+      "stem": "karaoke_mix",
+      "max_abs": 5.364418029785156e-07,
+      "waveform_snr_db": 127.64329652708224
+    },
+    {
+      "run": "mdx-cpu-opt-4",
+      "stem": "lead_vocals",
+      "max_abs": 5.364418029785156e-07,
+      "waveform_snr_db": 126.59823386475166
+    }
+  ],
+  "status": "passed",
+  "binary_sha256": {
+    "baseline": "dc51356e0b3398a802c1b041b1e31e4735a2c368c9d33310af1195383d5cd806",
+    "cpu_opt": "2faf1d77ff867a3bb71b8bd31a91b5e6dbd74cb2e103e93053d0d8f5d8201ec4"
+  },
+  "note": "Baseline thread environment is taken from the recorded launch command; its older report did not contain this field."
+}

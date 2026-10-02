@@ -6,7 +6,7 @@ chunk → STFT → RoFormer → iSTFT → OLA → residual → WAV / run.json。
 | 位置 | 职责 |
 |---|---|
 | `crates/ancha-audio` | Symphonia 解码、指定片段、Rubato sinc 重采样、RealFFT、分块和 OLA |
-| `crates/ancha-models` | 版本化 manifest、严格权重加载、BS/Mel 两种 forward、转换工具 |
+| `crates/ancha-models` | 版本化 manifest、严格权重加载、BS/Mel/HyperACE forward、经典 MDX ONNX 图、转换工具 |
 | `crates/ancha-kernels` | 原实验包的标量数学参考、online softmax、融合与缓存准入测试 |
 | `src` | 后端选择、资源限额、任务取消、CLI、运行报告、性能消融 |
 | `tests` | 运行时生成的原创微型权重与音频，覆盖完整分离路径 |
@@ -32,7 +32,8 @@ MLP 使用 Tanh 和最终 GLU，FFN 使用精确 GELU。
 
 Mel gather 保留重复频点，输出 mask 用 scatter-add 聚合，再除以每频点覆盖数量。
 双输出模型的两个原生头均保留，单输出模型才计算另一轨残差。
-HyperACE 的 SegmModel 分支没有实现，因此它的权重会严格加载失败，不会被当作普通 BS 模型。
+HyperACE v2 使用独立 SegmModel adapter，把空间预测与 per-band MLP mask 相加；完整参数必须被消费。
+它不会被当作普通 BS 模型，固定 source/DSP 与后续验收见 [新增适配](adapters.md)。
 
 ## DSP、分块与输出
 
@@ -57,7 +58,7 @@ RealFFT 的计划、频谱、时间和 scratch buffers 在通道、chunk 间复�
 
 ## 内存、性能与取消
 
-GPU 只驻留权重、当前 chunk 和 forward 临时张量；不驻留整首歌曲。
+GPU 只驻留权重、当前 chunk/batch 和 forward 临时张量；不驻留整首歌曲。
 主机保留解码 PCM 与输出 accumulator，内存仍随时长增长，通过 `--max-seconds` 限制采样数。
 schema 1 的分离不是滚动磁盘流式实现。64 位平台默认每通道 158760000 samples；
 三个双声道 PCM 缓冲本身可接近 3.8 GB，另需 chunk、权重、临时 buffer 和双输出工作内存。
@@ -75,3 +76,18 @@ RTF=`包含加载与WAV写出的总墙钟时间 / 片段音频时间`，越小�
 
 SDK 接受 AtomicBool 取消标志和 chunk 进度回调。Ctrl+C 设置取消标志；在 chunk、
 Transformer 层、mask head 边界检查，已经提交的 GPU kernel 可能需要先完成。
+
+## 新增模型适配
+
+`Family::HyperaceV2` 注册独立 SegmModel，在普通 BS per-band mask 上叠加空间分支；
+所有新张量必须严格加载，resolved DSP 为作者的 zero_dc=false / 960000 / overlap=4。
+空间模块在 `ancha-models::spatial`，完整网络在 `hyperace.rs`。
+
+`ancha-models::mdx` 从 ONNX 直接建立 classic MDX 图调度，运行期权重常驻、按消费者释放中间句柄。
+`ancha::mdx_runtime` 独立保持 UVR 的 FFT6144/5120、hop1024、F/T、complex packing、低频清零、
+trim、padding、OLA、compensate 和任务标签；不滥用 schema1 RoFormer 的固定 FFT2048 配置。
+基于 SHA256 的注册避免以文件名猜测模型。参数与加速边界见 [适配文档](adapters.md)。
+
+可选 `cpu-opt` 开启 Burn SIMD 与 NdArray 多线程；`simd` 可单独消融，macOS `accelerate` 提供 BLAS。
+CPU 线程由进程启动前的 RAYON_NUM_THREADS / VECLIB_MAXIMUM_THREADS 等控制，报告保存设置；
+这些环境值不是对系统实际并发线程总数的采样。WGPU 保留原生 GPU 卷积、固定 FP32，batch 默认1。

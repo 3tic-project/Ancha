@@ -1,0 +1,67 @@
+{
+  "scope": "serial same-binary same-PCM/context MDX ablation; no denoise/overlap changes",
+  "model_id": "mdx-kara-2",
+  "weights_sha256": "bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4",
+  "pcm_sha256": "e1168f5feb259561d9853729e564c2f5475313563bd3802100d56fa08fa46f05",
+  "backend": "wgpu",
+  "samples": 1323000,
+  "iterations": 1,
+  "denoise": false,
+  "overlap_fraction": null,
+  "build_features": [
+    "onnx",
+    "wgpu",
+    "accelerate",
+    "convert",
+    "simd",
+    "cpu-opt"
+  ],
+  "cpu_thread_environment": {},
+  "binary_sha256": "2faf1d77ff867a3bb71b8bd31a91b5e6dbd74cb2e103e93053d0d8f5d8201ec4",
+  "runs": {
+    "baseline": [
+      {
+        "total_seconds": 17.37449645,
+        "model_seconds": 16.66293629,
+        "forwards": 7,
+        "folded_bn": 0
+      }
+    ],
+    "optimized": [
+      {
+        "total_seconds": 14.478552926,
+        "model_seconds": 13.880107912,
+        "forwards": 6,
+        "folded_bn": 5
+      }
+    ]
+  },
+  "medians": {
+    "baseline": {
+      "total_seconds": 17.37449645,
+      "model_seconds": 16.66293629
+    },
+    "optimized": {
+      "total_seconds": 14.478552926,
+      "model_seconds": 13.880107912
+    }
+  },
+  "total_speedup": 1.2000160885415267,
+  "model_speedup": 1.2004903993285323,
+  "waveform_comparisons": [
+    {
+      "iteration": 1,
+      "stem": "karaoke_mix",
+      "max_abs": 6.556510925292969e-07,
+      "waveform_snr_db": 131.034001455599
+    },
+    {
+      "iteration": 1,
+      "stem": "lead_vocals",
+      "max_abs": 6.556510925292969e-07,
+      "waveform_snr_db": 128.3109032740901
+    }
+  ],
+  "status": "passed",
+  "measurement_note": "Serial runs after compiler/test workloads finished; total includes per-process loading and writing. Cold driver/shader compilation is not separately sampled."
+}

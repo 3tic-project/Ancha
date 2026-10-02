@@ -1,0 +1,32 @@
+{
+  "date": "2026-10-02",
+  "platform": "macos-x86_64",
+  "rust": "1.92.0",
+  "status": "passed",
+  "commands": {
+    "cargo fmt --all --check": "passed",
+    "cargo clippy --workspace --all-targets --features convert,accelerate,wgpu,onnx,cpu-opt --locked -- -D warnings": "passed",
+    "cargo test --workspace --features convert,accelerate,wgpu,onnx,cpu-opt --locked": "passed (28 tests)",
+    "cargo test --workspace --features convert,onnx,cpu-opt --locked": "passed (28 tests, without Apple BLAS/WGPU)",
+    "cargo build --release --features convert,accelerate,wgpu,onnx,cpu-opt --locked": "passed",
+    "shell syntax and model-download checksum revalidation": "passed",
+    "python parity/comparison scripts compile": "passed"
+  },
+  "real_model_checks": {
+    "hyperace-v2-voc": "1170 tensors strictly loaded; CPU, CPU SIMD+parallel, WGPU PyTorch parity; native-context execution",
+    "hyperace-v2-inst": "1170 tensors strictly loaded; WGPU PyTorch parity",
+    "mdx-9482": "WGPU / UVR waveform parity",
+    "mdx-kara": "WGPU / UVR waveform parity",
+    "mdx-kara-2": "CPU / CPU-opt / WGPU / denoise+overlap+batch / native 30s UVR waveform parity",
+    "mdx-inst-hq-2": "WGPU 3s and native 30s UVR waveform parity"
+  },
+  "performance": "3 serial paired repetitions for GPU 3s; one pair for native 30s; one CPU observation per thread/feature setting; negative batch result retained",
+  "not_validated": [
+    "HyperACE v2 instrumental CPU waveform",
+    "CUDA",
+    "clean-stem SDR / dataset quality",
+    "full 277-second song",
+    "other hardware/platforms",
+    "profiled peak VRAM"
+  ]
+}

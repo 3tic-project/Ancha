@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 pub enum Family {
     BsRoformer,
     MelBandRoformer,
+    HyperaceV2,
 }
 
 /// Versioned forward contract. All non-persistent band constants are explicit.
@@ -95,7 +96,7 @@ impl ModelConfig {
             coverage.iter().all(|&n| n > 0),
             "bands leave uncovered FFT bins"
         );
-        if self.family == Family::BsRoformer {
+        if self.family != Family::MelBandRoformer {
             ensure!(
                 coverage.iter().all(|&n| n == 1),
                 "BS bands must partition the frequency axis"
@@ -103,6 +104,12 @@ impl ModelConfig {
             ensure!(
                 self.bands.iter().flatten().copied().eq(0..bins),
                 "BS bands must be contiguous and in frequency order"
+            );
+        }
+        if self.family == Family::HyperaceV2 {
+            ensure!(
+                self.dim == 256 && self.bands.len() == 62 && self.stems.len() == 1,
+                "HyperACE v2 requires dim=256, 62 bands and one stem"
             );
         }
         Ok(())
@@ -150,6 +157,29 @@ impl ModelConfig {
             ],
             bands,
         }
+    }
+
+    pub fn hyperace_v2(instrumental: bool) -> Self {
+        let mut c = Self::leap_xe(instrumental);
+        c.family = Family::HyperaceV2;
+        c.depth = 12;
+        c.chunk_samples = 960_000;
+        c.overlap = 4;
+        c.zero_dc = false;
+        let mut offset = 0;
+        c.bands = std::iter::repeat_n(2, 24)
+            .chain(std::iter::repeat_n(4, 12))
+            .chain(std::iter::repeat_n(12, 8))
+            .chain(std::iter::repeat_n(24, 8))
+            .chain(std::iter::repeat_n(48, 8))
+            .chain([128, 129])
+            .map(|n| {
+                let band = (offset..offset + n).collect();
+                offset += n;
+                band
+            })
+            .collect();
+        c
     }
 }
 

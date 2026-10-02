@@ -1,0 +1,20 @@
+{
+  "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+  "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+  "weights_sha256": "e3167c87333a48548413e972a286bf40bf5694001d2853861eb1435953f02d63",
+  "model_id": "mdx-kara",
+  "ort": "1.20.1",
+  "torch": "2.2.2",
+  "telemetry": "disabled before session creation",
+  "ort_threads": 4,
+  "backend": "wgpu",
+  "samples": 132300,
+  "denoise": false,
+  "overlap_fraction": null,
+  "original_uvr_forwards": 2,
+  "rust_forwards": 1,
+  "reference_seconds": 2.4792717676609755,
+  "max_abs": 3.7997961044311523e-07,
+  "waveform_snr_db": 128.04269077463385,
+  "status": "passed"
+}

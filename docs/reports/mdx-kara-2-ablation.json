@@ -1,0 +1,115 @@
+{
+  "scope": "serial same-binary same-PCM/context MDX ablation; no denoise/overlap changes",
+  "model_id": "mdx-kara-2",
+  "weights_sha256": "bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4",
+  "pcm_sha256": "f05dcb894bbcea0d2f5e71381f4a50d4b9c9bbb78a5a2e57823d80a54ebc53a0",
+  "backend": "wgpu",
+  "samples": 132300,
+  "iterations": 3,
+  "denoise": false,
+  "overlap_fraction": null,
+  "build_features": [
+    "onnx",
+    "wgpu",
+    "accelerate",
+    "convert",
+    "simd",
+    "cpu-opt"
+  ],
+  "cpu_thread_environment": {},
+  "binary_sha256": "2faf1d77ff867a3bb71b8bd31a91b5e6dbd74cb2e103e93053d0d8f5d8201ec4",
+  "runs": {
+    "baseline": [
+      {
+        "total_seconds": 5.568142189,
+        "model_seconds": 5.194122076999999,
+        "forwards": 2,
+        "folded_bn": 0
+      },
+      {
+        "total_seconds": 5.210362283,
+        "model_seconds": 4.884788959,
+        "forwards": 2,
+        "folded_bn": 0
+      },
+      {
+        "total_seconds": 5.491417586,
+        "model_seconds": 5.172133427,
+        "forwards": 2,
+        "folded_bn": 0
+      }
+    ],
+    "optimized": [
+      {
+        "total_seconds": 2.918308175,
+        "model_seconds": 2.6211268309999998,
+        "forwards": 1,
+        "folded_bn": 5
+      },
+      {
+        "total_seconds": 2.926450069,
+        "model_seconds": 2.645971612,
+        "forwards": 1,
+        "folded_bn": 5
+      },
+      {
+        "total_seconds": 2.87691962,
+        "model_seconds": 2.600535597,
+        "forwards": 1,
+        "folded_bn": 5
+      }
+    ]
+  },
+  "medians": {
+    "baseline": {
+      "total_seconds": 5.491417586,
+      "model_seconds": 5.172133427
+    },
+    "optimized": {
+      "total_seconds": 2.918308175,
+      "model_seconds": 2.6211268309999998
+    }
+  },
+  "total_speedup": 1.8817127104816473,
+  "model_speedup": 1.9732480572207767,
+  "waveform_comparisons": [
+    {
+      "iteration": 1,
+      "stem": "karaoke_mix",
+      "max_abs": 5.364418029785156e-07,
+      "waveform_snr_db": 130.33207706381063
+    },
+    {
+      "iteration": 1,
+      "stem": "lead_vocals",
+      "max_abs": 5.364418029785156e-07,
+      "waveform_snr_db": 129.26738720273482
+    },
+    {
+      "iteration": 2,
+      "stem": "karaoke_mix",
+      "max_abs": 5.364418029785156e-07,
+      "waveform_snr_db": 130.33207706381063
+    },
+    {
+      "iteration": 2,
+      "stem": "lead_vocals",
+      "max_abs": 5.364418029785156e-07,
+      "waveform_snr_db": 129.26738720273482
+    },
+    {
+      "iteration": 3,
+      "stem": "karaoke_mix",
+      "max_abs": 5.364418029785156e-07,
+      "waveform_snr_db": 130.33207706381063
+    },
+    {
+      "iteration": 3,
+      "stem": "lead_vocals",
+      "max_abs": 5.364418029785156e-07,
+      "waveform_snr_db": 129.26738720273482
+    }
+  ],
+  "status": "passed",
+  "measurement_note": "Serial runs after compiler/test workloads finished; total includes per-process loading and writing. Cold driver/shader compilation is not separately sampled."
+}

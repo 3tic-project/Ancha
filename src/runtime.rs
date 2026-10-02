@@ -289,10 +289,21 @@ pub fn separate<B: Backend>(
             ("wgpu", cfg!(feature = "wgpu")),
             ("accelerate", cfg!(feature = "accelerate")),
             ("convert", cfg!(feature = "convert")),
+            ("onnx", cfg!(feature = "onnx")),
+            ("simd", cfg!(feature = "simd")),
+            ("cpu-opt", cfg!(feature = "cpu-opt")),
         ]
         .into_iter()
         .filter(|(_, enabled)| *enabled)
         .map(|(name, _)| name.into())
+        .collect(),
+        cpu_thread_environment: [
+            "RAYON_NUM_THREADS",
+            "VECLIB_MAXIMUM_THREADS",
+            "MATMUL_NUM_THREADS",
+        ]
+        .into_iter()
+        .filter_map(|key| std::env::var(key).ok().map(|value| (key.into(), value)))
         .collect(),
         estimated_time_attention_score_bytes: score_bytes,
         residual_reconstruction_max_abs: reconstruction,

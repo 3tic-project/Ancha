@@ -1,0 +1,56 @@
+{
+  "scope": "same binary/PCM/native MDX context; batch-size ablation, one observation",
+  "model_id": "mdx-kara-2",
+  "weights_sha256": "bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4",
+  "samples": 1323000,
+  "backend": "wgpu",
+  "runs": [
+    {
+      "batch_size": 1,
+      "chunks": 6,
+      "forwards": 6,
+      "timings": {
+        "model_load_seconds": 0.239040292,
+        "decode_seconds": 0.020446566,
+        "resample_seconds": 0.000874028,
+        "stft_seconds": 0.15476222099999998,
+        "model_seconds": 14.288728595000002,
+        "istft_seconds": 0.08943140100000001,
+        "overlap_seconds": 0.010969521999999999,
+        "write_seconds": 0.044443586,
+        "total_seconds": 14.889325798
+      }
+    },
+    {
+      "batch_size": 2,
+      "chunks": 6,
+      "forwards": 3,
+      "timings": {
+        "model_load_seconds": 0.232073968,
+        "decode_seconds": 0.019148331,
+        "resample_seconds": 0.000720828,
+        "stft_seconds": 0.164248292,
+        "model_seconds": 14.647816978,
+        "istft_seconds": 0.134584909,
+        "overlap_seconds": 0.016330049,
+        "write_seconds": 0.051637788,
+        "total_seconds": 15.299719248
+      }
+    }
+  ],
+  "total_speedup": 0.9731764064851289,
+  "waveform_comparisons": [
+    {
+      "stem": "karaoke_mix",
+      "max_abs": 0.0,
+      "waveform_snr_db": 287.1144597940337
+    },
+    {
+      "stem": "lead_vocals",
+      "max_abs": 0.0,
+      "waveform_snr_db": 284.4245391649922
+    }
+  ],
+  "status": "passed",
+  "note": "Batch 2 was slightly slower on this RX580; default remains batch 1."
+}
