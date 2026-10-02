@@ -161,7 +161,8 @@ Inst HQ 2 30 秒在 batch 1 / 2 / 4 下为 10.76 / 10.45 / 10.71 秒；修正前
 - WGPU 首次运行某个模型/上下文要做 autotune，HyperACE 原生块首次约 255 秒，之后复用缓存；
   缓存随 Burn/CubeCL 版本或驱动变化可能失效。
 - 没有 profiler 级显存峰值；`--max-score-mib` 只约束 score 张量。
-- 未验证 CUDA、Linux / Windows GPU、其它 CPU；CPU 线程数默认取逻辑核数，超线程收益与机器有关。
+- 本轮未验证 CUDA、Linux / Windows GPU、其它 CPU；CPU 线程数默认取逻辑核数，超线程收益与机器有关。
+  CUDA 后端与 Linux（Xeon + Tesla P4）上的三后端实测见后续的 [CUDA 记录](cuda.md)。
 - 未改变模型上下文、精度或量化；更快的低精度、蒸馏和更短上下文都属于不同的质量配置。
 
 ## 复现

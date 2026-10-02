@@ -8,7 +8,7 @@ chunk → STFT → RoFormer → iSTFT → OLA → residual → WAV / run.json。
 | `crates/ancha-audio` | Symphonia 解码、指定片段、Rubato sinc 重采样、RealFFT、分块和 OLA |
 | `crates/ancha-models` | 版本化 manifest、严格权重加载、BS/Mel/HyperACE forward、经典 MDX ONNX 图、转换工具 |
 | `crates/ancha-kernels` | 原实验包的标量数学参考、online softmax、融合与缓存准入测试 |
-| `src` | 后端选择、资源限额、任务取消、CLI、运行报告、性能消融 |
+| `src` | 后端选择、资源限额、任务取消、CLI、运行报告、性能消融、CUDA 预检与内核缓存、GPU 故障检查 |
 | `tests` | 运行时生成的原创微型权重与音频，覆盖完整分离路径 |
 | `scripts` | 开发期下载／Python 独立 parity；运行时不调用这些脚本 |
 | `configs` | 不含权重的模型配置，Mel 索引在开发期导出后固定 |
@@ -84,20 +84,26 @@ groups=bands、tokens=frames，频率轴相反。未给 `--query-tile` / `--grou
 按 `--max-score-mib`（默认 512）选择不超过预算的最大精确分块：先保持整段 query，再尽量合并组。
 分块只改变浮点调度，softmax 始终覆盖全长 K/V，未修改双向注意力上下文。
 CPU 多 worker 并发时预算平分给各 worker，并发 scores 总量仍不超过该限额。
-`--max-score-mib` 不是总显存上限；Burn 队列、QKV 和 concat 也需要内存。
+`--max-score-mib` 不是总显存上限；Burn 队列、QKV 和 concat 也需要内存。8 GB 显卡上原生 Leap 块把它调到
+1024 以上会显存不足（Tesla P4 实测），此时任务按下文的设备故障检查报错。
 没有量化、近似窗口或不合法的深层跨 chunk KV 缓存。
 
 CPU 默认使用 Burn Flex 后端（gemm 矩阵乘、im2col 卷积、零拷贝 strided view）；
 `--backend ndarray` 保留旧 NdArray 供消融。Flex 的逐元素算子是单线程，因此 RoFormer
 每个轴向 Transformer 把相互独立的序列组（时间轴的频带、频率轴的帧）切给 `--host-threads`
-个主机线程，默认等于逻辑核数；每组算术完全相同，WGPU 固定为 1。
+个主机线程，默认等于逻辑核数；每组算术完全相同，GPU（WGPU / CUDA）固定为 1。
 
 模型计时包含 CPU→GPU 传输与最终 readback 同步，加载计时另列；`model_call_seconds`
-逐次记录，第一项还包含 WGPU 内核编译和 autotune。
+逐次记录，第一项还包含 GPU 内核编译和 autotune。
 RTF=`包含加载与WAV写出的总墙钟时间 / 片段音频时间`，越小越快。
-批量投影是本机更快的默认布局；独立行合并成单次大 GEMM 的实验路径保持数值一致，
-但在 RX 580 上实测变慢，只有显式 `--flatten-linear` 才启用。
+批量投影与把独立行合并成单次大 GEMM 的布局数值一致；`--linear-layout auto` 在 CUDA 上选后者
+（Tesla P4 实测快 0–9%），在 CPU / WGPU 上保留批量投影（RX 580 上合并布局更慢）。
 独立算子 `bench` 与完整音频分离耗时分开，避免将合成 GEMM 提速套到整模型。
+
+CubeCL 0.10 在设备服务线程（`DSU-*` / `DSD-*`）里分配显存并直接 unwrap，显存不足时 panic 只留在该线程：
+之后的读回返回旧缓冲、`Backend::sync` 仍然成功。`ancha::device` 在分离开始时挂接 panic hook 记录这类
+panic，并在模型加载后与每次模型调用后检查；一旦发生，任务以显存不足提示失败，不发布任何结果。
+该状态在进程内不清除，因为此后同一设备上的所有结果都不可信。
 
 SDK 接受 AtomicBool 取消标志和 chunk 进度回调。Ctrl+C 设置取消标志；在 chunk、
 Transformer 层、mask head 边界检查，已经提交的 GPU kernel 可能需要先完成。
@@ -116,6 +122,8 @@ trim、padding、OLA、compensate 和任务标签；不滥用 schema1 RoFormer �
 CPU 默认 Flex 后端自带 SIMD 与 Rayon 并行 gemm/im2col，线程数可用进程启动前的
 `RAYON_NUM_THREADS` 控制。可选 `cpu-opt` 只影响 `--backend ndarray`（Burn SIMD 与 NdArray 多线程），
 macOS `accelerate` 为 NdArray 提供 BLAS；报告保存这些环境设置，但它们不是对实际并发线程的采样。
-WGPU 启用 Burn autotune，固定 FP32，batch 默认 1。CubeCL 在没有 cooperative-matrix 的 GPU
-（如 RX 580）上只能用直接卷积，MDX 因此默认把非分组卷积改写为 patch gather + 一次 GEMM；
-CPU 仍用 Flex 原生卷积。`--conv-strategy gemm|backend` 可做同二进制消融。
+WGPU 与 CUDA 都启用 Burn fusion 与 autotune，固定 FP32，batch 默认 1。CubeCL 在没有 cooperative-matrix /
+Tensor Core 的 GPU（如 RX 580、Pascal 的 Tesla P4）上只能用直接卷积，MDX 因此在 GPU 上默认把非分组卷积
+改写为 patch gather + 一次 GEMM；CPU 仍用 Flex 原生卷积。HyperACE SegmModel 的非分组卷积只在 CUDA 上默认走同一 GEMM
+改写（深度可分离层保持 conv2d）。`--conv-strategy gemm|backend` 可做同二进制消融。
+CUDA 的设备预检、按架构与模型分区的 PTX 缓存见 `src/cuda.rs` 与 [CUDA 记录](cuda.md)。

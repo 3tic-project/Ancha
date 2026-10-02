@@ -90,11 +90,12 @@ Add、Mul、Transpose。要求 opset=13、一个 F32 输入/输出、明确的 N
 网络仍完整计算所有有贡献的 chunk；没有静音近似、频带删减、量化或注意力替换。
 `--mdx-no-optimize` 可同时关闭这些优化，供相同二进制消融。
 
-WGPU 默认 `--conv-strategy auto` 把非分组、无空洞的 Conv 改写为滑窗 patch gather（`unfold`，
+WGPU / CUDA 默认 `--conv-strategy auto` 把非分组、无空洞的 Conv 改写为滑窗 patch gather（`unfold`，
 通道×ky×kx 顺序对应 `[out,in,kh,kw]` 权重）加一次 autotune GEMM。乘加项与原卷积相同，
 只是累加顺序不同；CubeCL 在 RX 580 这类无 cooperative-matrix 的 GPU 上只提供直接卷积。
 CPU 保持 Flex 原生 im2col 卷积，实测比 patch gather 更快。`--conv-strategy gemm|backend`
-可强制任一路径，实际策略写入 run.json 的 `conv_strategy`。
+可强制任一路径，实际策略写入 run.json 的 `conv_strategy`。同一参数也作用于 HyperACE SegmModel 的非分组卷积，
+其 `auto` 只在 CUDA 上选 GEMM（Tesla P4 实测快约 10%，见 [CUDA 记录](cuda.md)）。
 
 `--mdx-batch-size 2` 可把多个独立固定形状 chunk 放入一次 forward；默认 1，上限 4。
 这不改变每个块的 padding / context / OLA，但增加显存用量。最后不足整批时使用实际 batch。

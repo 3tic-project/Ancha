@@ -1,0 +1,81 @@
+{
+  "scope": "CUDA-specific execution changes on one host, serial warm runs of the same PCM / weights / context; each row compares two settings or two consecutive commits; not SDR or quality evaluation",
+  "platform": "Linux 5.14 x86_64 (Rocky 9.2), Xeon E5-2673 v3 12C/24T, 15 GB; NVIDIA Tesla P4 8 GB (sm_61, driver 535.288.01, CUDA 12.2, 1113 MHz application clock); Rust 1.92.0, Burn 0.21.0, CubeCL 0.10.0",
+  "input": "NO_TRACK/runs/clip-3s.wav (3 s, float32 stereo 44.1 kHz)",
+  "entries": [
+    {
+      "change": "persistent NVRTC PTX cache (commit e0ab527)",
+      "workload": "MDX KARA 2, one native chunk, autotune already cached",
+      "before": {"model_call_seconds": [14.72, 12.91], "total_seconds": [15.34, 13.52]},
+      "after": {"model_call_seconds": [0.65, 0.651], "total_seconds": [1.29, 1.30]},
+      "note": "without a compilation cache CubeCL CUDA recompiles every kernel with NVRTC in each process"
+    },
+    {
+      "change": "PTX cache partitioned per model file (commit 6865c13)",
+      "workload": "warm runs after all models were cached",
+      "before": {"kara2_load_seconds": 1.745, "kara2_total_seconds": 2.498, "leap_short_load_seconds": 3.244, "leap_short_total_seconds": 6.006},
+      "after": {"kara2_load_seconds": 0.57, "kara2_total_seconds": 1.29, "leap_short_load_seconds": 2.115, "leap_short_total_seconds": 4.875},
+      "note": "CubeCL deserializes the whole CBOR cache (68 MB for all models) at start-up, about 1.2 s; first run of a new partition recompiles once (KARA 2 12.2 s, Leap short 27.3 s)"
+    },
+    {
+      "change": "MDX convolution strategy (unchanged default: GEMM on GPUs)",
+      "workload": "MDX KARA 2, one native chunk",
+      "gemm_model_call_seconds": [0.653, 0.65, 0.65],
+      "backend_conv2d_model_call_seconds": [1.71, 1.707],
+      "note": "Pascal has no tensor cores, CubeCL falls back to direct convolution"
+    },
+    {
+      "change": "--linear-layout auto flattens projections on CUDA (commit aa28258)",
+      "workload": "model call per chunk, batched -> flattened",
+      "rows": [
+        {"model": "deux short", "batched": [1.95, 1.95, 1.95, 1.98], "flattened": [1.80, 1.77, 1.78, 1.83]},
+        {"model": "hyperace-v2-voc short", "batched": [2.11, 2.11], "flattened": [1.96]},
+        {"model": "hyperace-v2-voc native", "batched": [20.72, 20.71], "flattened": [19.88, 19.83, 19.85]},
+        {"model": "leap-xe-voc short", "batched": [2.71, 2.71], "flattened": [2.63]},
+        {"model": "leap-xe-voc native", "batched": [28.52], "flattened": [28.63]}
+      ],
+      "parity": "unchanged on CUDA for all four RoFormer models (cuda-parity.json)"
+    },
+    {
+      "change": "weights SHA-256 overlapped with parsing / upload (commit fa6efbf)",
+      "workload": "model_load_seconds, warm page cache",
+      "before": {"deux": [6.40, 6.54, 6.55, 6.58], "leap-xe-voc": [2.11, 2.12]},
+      "after": {"deux": [5.43], "leap-xe-voc": [1.66]},
+      "note": "sha2 runs at about 160 MB/s on this CPU (no SHA extensions); hashing the 830 MB Deux package alone takes about 5.2 s, so Deux stays hash-bound; see cuda-benchmark.json for more load samples"
+    },
+    {
+      "change": "device-thread failure guard (commit 34a44f6)",
+      "workload": "leap-xe-voc native chunk, --max-score-mib sweep",
+      "rows": [
+        {"max_score_mib": 256, "tiles": [2, 1722, 1035, 90], "model_call_seconds": 28.95, "vocals_rms": 0.1826, "device_thread_panics": 0},
+        {"max_score_mib": 512, "tiles": [5, 1722, 1722, 90], "model_call_seconds": 28.5, "vocals_rms": 0.1826, "device_thread_panics": 0},
+        {"max_score_mib": 1024, "tiles": [11, 1722, 1722, 90], "model_call_seconds": 28.31, "vocals_rms": 0.18239, "device_thread_panics": 80},
+        {"max_score_mib": 2048, "tiles": [22, 1722, 1722, 90], "model_call_seconds": 12.99, "vocals_rms": 0.09234, "device_thread_panics": 512}
+      ],
+      "reference": "CPU Flex, same chunk: vocals RMS 0.1826, peak 1.0577",
+      "note": "before the guard the 1024 / 2048 runs exited 0 with wrong stems; the 2048 run only looked faster because attention was never computed. With the guard both fail with an out-of-memory hint and publish nothing"
+    },
+    {
+      "change": "HyperACE SegmModel ungrouped convolutions as patch gather + GEMM on CUDA (commit c252cdf)",
+      "workload": "hyperace-v2-voc, model call per chunk, --conv-strategy backend -> default (gemm)",
+      "short": {"backend": [1.987, 1.962], "gemm": [1.861, 1.748]},
+      "native": {"backend": [19.9, 19.89], "gemm": [17.93, 17.91]},
+      "note": "17 direct-convolution launches were 13.9% (short) / 9.4% (native) of GPU time in cuda-profile.json; depthwise layers keep Burn conv2d; CUDA parity unchanged (inst 7.53e-6 / 117.30 dB)"
+    },
+    {
+      "change": "rejected: Burn fused attention (autotuned flash-unit / fallback), per group tile",
+      "workload": "leap-xe-voc, model call per chunk, warm",
+      "current_tiled_attention": {"short": 2.63, "native": 28.63},
+      "fused_attention": {"short": 2.82, "native": 35.13},
+      "note": "outputs identical to 4 digits; slower on Pascal, not kept"
+    },
+    {
+      "change": "GEMM ceiling (measurement only)",
+      "workload": "leap-xe-voc short chunk transformer GEMMs (16 depths x time / frequency axes)",
+      "cubecl_matmul_kernel_seconds": 1.59,
+      "cublas_fp32_seconds": 0.561,
+      "cublas_tflops_range": [1.21, 4.4],
+      "note": "CubeCL time from nsys (cuda-profile.json, matmul share of GPU kernel time, includes the small band / mask GEMMs); cuBLAS from PyTorch 2.5.1+cu121 on the same GPU with TF32 off. CubeCL has no tensor-core-free tiled GEMM comparable to cuBLAS on Pascal"
+    }
+  ]
+}

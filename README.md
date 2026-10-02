@@ -14,9 +14,14 @@ float32 WAV 输出和可追溯的 run.json。模型与素材均保留在 NO_TRAC
 | HyperACE v2 vocals / instrumental | 完整 SegmModel 已实现；两个 checkpoint 的 WGPU 波形比对通过，vocals 另通过 CPU 比对 |
 | 经典 MDX ONNX | 9482、KARA、KARA 2、Inst HQ 2 原生 Rust 推理；四模型 WGPU 对齐 UVR，KARA 2 / HQ 2 另通过 CPU 比对 |
 
+以上 8 个模型（9 个输出）另在 NVIDIA Tesla P4 的 CUDA 后端与 Linux Xeon CPU 上全部通过同一组参考比对。
+同一 NVIDIA GPU 上的 WGPU（Vulkan）对 Deux 与 HyperACE inst 比对失败（与 CUDA 之前的版本相同），NVIDIA 显卡请用 CUDA。
+
 HyperACE 与经典 MDX 的适配、使用和任务语义见 [新增适配文档](docs/adapters.md)。
 CPU / WGPU 推理速度审计、算子折叠与当前实测见 [速度优化记录](docs/speed-optimization.md)；
-上一轮速度见 [适配性能记录](docs/adapters-performance.md)。目前仍未完成 CUDA、Leap inst 独立验收与三后端全量验收。
+CUDA 后端的适配、优化、profile 与 Linux 三后端实测见 [CUDA 记录](docs/cuda.md)；
+上一轮速度见 [适配性能记录](docs/adapters-performance.md)。目前仍未完成 Leap inst 独立验收，
+CUDA 的 GEMM 仍为 CubeCL 通用内核（未接 cuBLAS / Tensor Core）。
 早期 Leap / Deux 的测试和优化保留在 [性能记录](docs/performance.md)。
 
 ## 构建与本机使用
@@ -44,6 +49,11 @@ Linux / Windows 不启用 Apple Accelerate：
 cargo build --release --locked --features convert,wgpu,onnx,cpu-opt
 # 使用 CPU，可省略 wgpu feature。
 target/release/ancha doctor --backend cpu
+
+# NVIDIA GPU：需要驱动与 CUDA Toolkit 12.x 的 NVRTC；构建时 nvcc 在 PATH 中（或设
+# CUDARC_CUDA_VERSION=12020 一类的值与驱动匹配）。运行时动态加载，不链接 CUDA 库。
+PATH=/usr/local/cuda/bin:$PATH cargo build --release --locked --features convert,cuda,onnx,cpu-opt
+target/release/ancha doctor --backend cuda
 ```
 
 `--duration` 只截取待处理片段；默认依然按原生块长补齐，因此短片段不必然按时长线性提速。
@@ -59,10 +69,13 @@ target/release/ancha separate 'NO_TRACK/test_file/ReoNa - Amore.mp3' \
 `--chunk-samples` / `--overlap` 会改变分离上下文，标记为 `custom-context`；它们不是等质量加速。
 attention 分块默认按 `--max-score-mib`（512）自动选择，`--query-tile` / `--group-tile`
 可显式指定；它们都只调节完整 K/V 注意力的内部计算分块。
-默认保留本机实测更快的批量投影布局，`--flatten-linear` 提供实验性替代布局供消融。
-CPU、WGPU 必须显式选择；没有静默后端回退。Ctrl+C 可在模型层／chunk 边界取消。
+`--linear-layout auto` 在 CUDA 上把投影的独立行合并为一次 GEMM，其它后端保留本机实测更快的
+批量投影；`batched` / `flattened`（旧参数 `--flatten-linear`）可强制任一布局做消融。
+CPU、WGPU、CUDA 必须显式选择；没有静默后端回退。Ctrl+C 可在模型层／chunk 边界取消。
 `--backend cpu` 使用纯 Rust Burn Flex，`--backend ndarray` 保留旧 CPU 后端供对比。
-WGPU 启用 autotune：某模型与上下文首次运行会先实测内核（可达数分钟），结果缓存后复用。
+WGPU / CUDA 启用 autotune：某模型与上下文首次运行会先实测内核（可达数分钟），结果缓存后复用；
+CUDA 另按 GPU 架构与模型缓存 NVRTC 编译结果。GPU 设备线程上的显存分配失败会使任务报错，
+不会发布结果。
 
 ## 新工作区准备模型
 

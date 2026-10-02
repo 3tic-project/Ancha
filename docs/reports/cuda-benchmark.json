@@ -1,0 +1,549 @@
+{
+  "scope": "serial runs of one binary, identical PCM / weights / audio context per label; medians over measured runs after a warm-up pass; not SDR or quality evaluation",
+  "platform": "Linux 5.14 x86_64 (Rocky 9.2), Xeon E5-2673 v3 12C/24T, 15 GB; NVIDIA Tesla P4 8 GB (sm_61, driver 535.288.01, CUDA 12.2, 1113 MHz application clock); WGPU = Vulkan on the same P4; CPU = Burn Flex, 24 host threads",
+  "binary_sha256": "644b15994511ae2affda1934c733729707b653d22920cd99e828351d0ea67182",
+  "entries": [
+    {
+      "label": "cpu-deux-short3",
+      "model_id": "deux",
+      "audio_seconds": 3.0,
+      "chunks": 1,
+      "backends": {
+        "cpu": {
+          "runs": 2,
+          "device": "flex",
+          "settings": {
+            "profile": "custom-context",
+            "linear_layout": "batched",
+            "host_threads": 24,
+            "group_tile": 3,
+            "query_tile": 301,
+            "frequency_group_tile": 13,
+            "frequency_query_tile": 60
+          },
+          "total_seconds": 14.345,
+          "model_load_seconds": 4.967,
+          "model_seconds": 9.326,
+          "first_call_seconds": 9.326,
+          "steady_call_seconds": null,
+          "rtf": 4.782
+        }
+      }
+    },
+    {
+      "label": "cpu-hace-short3",
+      "model_id": "hyperace-v2-voc",
+      "audio_seconds": 3.0,
+      "chunks": 1,
+      "backends": {
+        "cpu": {
+          "runs": 2,
+          "device": "flex",
+          "settings": {
+            "profile": "custom-context",
+            "linear_layout": "batched",
+            "host_threads": 24,
+            "group_tile": 3,
+            "query_tile": 259,
+            "frequency_group_tile": 11,
+            "frequency_query_tile": 62
+          },
+          "total_seconds": 11.587,
+          "model_load_seconds": 1.645,
+          "model_seconds": 9.902,
+          "first_call_seconds": 9.902,
+          "steady_call_seconds": null,
+          "rtf": 3.862
+        }
+      }
+    },
+    {
+      "label": "cpu-hq2-3",
+      "model_id": "mdx-inst-hq-2",
+      "audio_seconds": 3.0,
+      "chunks": 1,
+      "backends": {
+        "cpu": {
+          "runs": 2,
+          "device": "Cpu",
+          "settings": {
+            "profile": "uvr-single-pass",
+            "conv_strategy": "backend"
+          },
+          "total_seconds": 9.882,
+          "model_load_seconds": 0.462,
+          "model_seconds": 9.335,
+          "first_call_seconds": 9.335,
+          "steady_call_seconds": null,
+          "rtf": 3.294
+        }
+      }
+    },
+    {
+      "label": "cpu-kara2-30",
+      "model_id": "mdx-kara-2",
+      "audio_seconds": 30.0,
+      "chunks": 6,
+      "backends": {
+        "cpu": {
+          "runs": 2,
+          "device": "Cpu",
+          "settings": {
+            "profile": "uvr-single-pass",
+            "conv_strategy": "backend"
+          },
+          "total_seconds": 40.005,
+          "model_load_seconds": 0.372,
+          "model_seconds": 39.153,
+          "first_call_seconds": 6.564,
+          "steady_call_seconds": 6.523,
+          "rtf": 1.333
+        }
+      }
+    },
+    {
+      "label": "cpu-leap-short3",
+      "model_id": "leap-xe-voc",
+      "audio_seconds": 3.0,
+      "chunks": 1,
+      "backends": {
+        "cpu": {
+          "runs": 2,
+          "device": "flex",
+          "settings": {
+            "profile": "custom-context",
+            "linear_layout": "batched",
+            "host_threads": 24,
+            "group_tile": 4,
+            "query_tile": 259,
+            "frequency_group_tile": 11,
+            "frequency_query_tile": 90
+          },
+          "total_seconds": 14.752,
+          "model_load_seconds": 1.53,
+          "model_seconds": 13.182,
+          "first_call_seconds": 13.182,
+          "steady_call_seconds": null,
+          "rtf": 4.917
+        }
+      }
+    },
+    {
+      "label": "gpu-9482-30",
+      "model_id": "mdx-9482",
+      "audio_seconds": 30.0,
+      "chunks": 6,
+      "backends": {
+        "cuda": {
+          "runs": 2,
+          "device": "Cuda(0)",
+          "settings": {
+            "profile": "uvr-single-pass",
+            "conv_strategy": "gemm"
+          },
+          "total_seconds": 3.368,
+          "model_load_seconds": 0.39,
+          "model_seconds": 2.435,
+          "first_call_seconds": 0.428,
+          "steady_call_seconds": 0.401,
+          "rtf": 0.112
+        },
+        "wgpu": {
+          "runs": 2,
+          "device": "DiscreteGpu(0)",
+          "settings": {
+            "profile": "uvr-single-pass",
+            "conv_strategy": "gemm"
+          },
+          "total_seconds": 5.29,
+          "model_load_seconds": 0.321,
+          "model_seconds": 4.422,
+          "first_call_seconds": 1.413,
+          "steady_call_seconds": 0.602,
+          "rtf": 0.176
+        }
+      }
+    },
+    {
+      "label": "gpu-deux-short30",
+      "model_id": "deux",
+      "audio_seconds": 30.0,
+      "chunks": 10,
+      "backends": {
+        "cuda": {
+          "runs": 2,
+          "device": "fusion<cubecl<cuda>>",
+          "settings": {
+            "profile": "custom-context",
+            "linear_layout": "flattened",
+            "host_threads": 1,
+            "group_tile": 60,
+            "query_tile": 301,
+            "frequency_group_tile": 301,
+            "frequency_query_tile": 60
+          },
+          "total_seconds": 22.616,
+          "model_load_seconds": 5.364,
+          "model_seconds": 16.694,
+          "first_call_seconds": 1.804,
+          "steady_call_seconds": 1.654,
+          "rtf": 0.754
+        },
+        "wgpu": {
+          "runs": 2,
+          "device": "fusion<cubecl<wgpu<wgsl>>>",
+          "settings": {
+            "profile": "custom-context",
+            "linear_layout": "batched",
+            "host_threads": 1,
+            "group_tile": 60,
+            "query_tile": 301,
+            "frequency_group_tile": 301,
+            "frequency_query_tile": 60
+          },
+          "total_seconds": 31.405,
+          "model_load_seconds": 5.404,
+          "model_seconds": 25.463,
+          "first_call_seconds": 4.517,
+          "steady_call_seconds": 2.328,
+          "rtf": 1.047
+        }
+      }
+    },
+    {
+      "label": "gpu-hace-native3",
+      "model_id": "hyperace-v2-voc",
+      "audio_seconds": 3.0,
+      "chunks": 1,
+      "backends": {
+        "cuda": {
+          "runs": 2,
+          "device": "fusion<cubecl<cuda>>",
+          "settings": {
+            "profile": "native-context",
+            "linear_layout": "flattened",
+            "host_threads": 1,
+            "group_tile": 4,
+            "query_tile": 1876,
+            "frequency_group_tile": 1876,
+            "frequency_query_tile": 62
+          },
+          "total_seconds": 21.814,
+          "model_load_seconds": 1.792,
+          "model_seconds": 19.855,
+          "first_call_seconds": 19.855,
+          "steady_call_seconds": null,
+          "rtf": 7.271
+        },
+        "wgpu": {
+          "runs": 2,
+          "device": "fusion<cubecl<wgpu<wgsl>>>",
+          "settings": {
+            "profile": "native-context",
+            "linear_layout": "batched",
+            "host_threads": 1,
+            "group_tile": 4,
+            "query_tile": 1876,
+            "frequency_group_tile": 1876,
+            "frequency_query_tile": 62
+          },
+          "total_seconds": 30.124,
+          "model_load_seconds": 1.801,
+          "model_seconds": 28.144,
+          "first_call_seconds": 28.144,
+          "steady_call_seconds": null,
+          "rtf": 10.041
+        }
+      }
+    },
+    {
+      "label": "gpu-hace-short30",
+      "model_id": "hyperace-v2-voc",
+      "audio_seconds": 30.0,
+      "chunks": 10,
+      "backends": {
+        "cuda": {
+          "runs": 2,
+          "device": "fusion<cubecl<cuda>>",
+          "settings": {
+            "profile": "custom-context",
+            "linear_layout": "flattened",
+            "host_threads": 1,
+            "group_tile": 62,
+            "query_tile": 259,
+            "frequency_group_tile": 259,
+            "frequency_query_tile": 62
+          },
+          "total_seconds": 20.539,
+          "model_load_seconds": 1.759,
+          "model_seconds": 18.399,
+          "first_call_seconds": 1.965,
+          "steady_call_seconds": 1.826,
+          "rtf": 0.685
+        },
+        "wgpu": {
+          "runs": 2,
+          "device": "fusion<cubecl<wgpu<wgsl>>>",
+          "settings": {
+            "profile": "custom-context",
+            "linear_layout": "batched",
+            "host_threads": 1,
+            "group_tile": 62,
+            "query_tile": 259,
+            "frequency_group_tile": 259,
+            "frequency_query_tile": 62
+          },
+          "total_seconds": 34.611,
+          "model_load_seconds": 1.79,
+          "model_seconds": 32.431,
+          "first_call_seconds": 11.567,
+          "steady_call_seconds": 2.318,
+          "rtf": 1.154
+        }
+      }
+    },
+    {
+      "label": "gpu-hq2-30",
+      "model_id": "mdx-inst-hq-2",
+      "audio_seconds": 30.0,
+      "chunks": 6,
+      "backends": {
+        "cuda": {
+          "runs": 2,
+          "device": "Cuda(0)",
+          "settings": {
+            "profile": "uvr-single-pass",
+            "conv_strategy": "gemm"
+          },
+          "total_seconds": 7.011,
+          "model_load_seconds": 0.665,
+          "model_seconds": 5.752,
+          "first_call_seconds": 0.981,
+          "steady_call_seconds": 0.954,
+          "rtf": 0.234
+        },
+        "wgpu": {
+          "runs": 2,
+          "device": "DiscreteGpu(0)",
+          "settings": {
+            "profile": "uvr-single-pass",
+            "conv_strategy": "gemm"
+          },
+          "total_seconds": 11.1,
+          "model_load_seconds": 0.589,
+          "model_seconds": 9.892,
+          "first_call_seconds": 2.528,
+          "steady_call_seconds": 1.473,
+          "rtf": 0.37
+        }
+      }
+    },
+    {
+      "label": "gpu-kara-30",
+      "model_id": "mdx-kara",
+      "audio_seconds": 30.0,
+      "chunks": 6,
+      "backends": {
+        "cuda": {
+          "runs": 2,
+          "device": "Cuda(0)",
+          "settings": {
+            "profile": "uvr-single-pass",
+            "conv_strategy": "gemm"
+          },
+          "total_seconds": 3.378,
+          "model_load_seconds": 0.392,
+          "model_seconds": 2.434,
+          "first_call_seconds": 0.429,
+          "steady_call_seconds": 0.401,
+          "rtf": 0.113
+        },
+        "wgpu": {
+          "runs": 2,
+          "device": "DiscreteGpu(0)",
+          "settings": {
+            "profile": "uvr-single-pass",
+            "conv_strategy": "gemm"
+          },
+          "total_seconds": 5.443,
+          "model_load_seconds": 0.321,
+          "model_seconds": 4.565,
+          "first_call_seconds": 1.557,
+          "steady_call_seconds": 0.601,
+          "rtf": 0.181
+        }
+      }
+    },
+    {
+      "label": "gpu-kara2-30",
+      "model_id": "mdx-kara-2",
+      "audio_seconds": 30.0,
+      "chunks": 6,
+      "backends": {
+        "cuda": {
+          "runs": 2,
+          "device": "Cuda(0)",
+          "settings": {
+            "profile": "uvr-single-pass",
+            "conv_strategy": "gemm"
+          },
+          "total_seconds": 4.882,
+          "model_load_seconds": 0.606,
+          "model_seconds": 3.766,
+          "first_call_seconds": 0.649,
+          "steady_call_seconds": 0.623,
+          "rtf": 0.163
+        },
+        "wgpu": {
+          "runs": 2,
+          "device": "DiscreteGpu(0)",
+          "settings": {
+            "profile": "uvr-single-pass",
+            "conv_strategy": "gemm"
+          },
+          "total_seconds": 8.43,
+          "model_load_seconds": 0.489,
+          "model_seconds": 7.403,
+          "first_call_seconds": 2.581,
+          "steady_call_seconds": 0.964,
+          "rtf": 0.281
+        }
+      }
+    },
+    {
+      "label": "gpu-leap-native3",
+      "model_id": "leap-xe-voc",
+      "audio_seconds": 3.0,
+      "chunks": 1,
+      "backends": {
+        "cuda": {
+          "runs": 2,
+          "device": "fusion<cubecl<cuda>>",
+          "settings": {
+            "profile": "native-context",
+            "linear_layout": "flattened",
+            "host_threads": 1,
+            "group_tile": 5,
+            "query_tile": 1722,
+            "frequency_group_tile": 1722,
+            "frequency_query_tile": 90
+          },
+          "total_seconds": 30.429,
+          "model_load_seconds": 1.657,
+          "model_seconds": 28.578,
+          "first_call_seconds": 28.578,
+          "steady_call_seconds": null,
+          "rtf": 10.143
+        },
+        "wgpu": {
+          "runs": 2,
+          "device": "fusion<cubecl<wgpu<wgsl>>>",
+          "settings": {
+            "profile": "native-context",
+            "linear_layout": "batched",
+            "host_threads": 1,
+            "group_tile": 5,
+            "query_tile": 1722,
+            "frequency_group_tile": 1722,
+            "frequency_query_tile": 90
+          },
+          "total_seconds": 36.297,
+          "model_load_seconds": 1.689,
+          "model_seconds": 34.431,
+          "first_call_seconds": 34.431,
+          "steady_call_seconds": null,
+          "rtf": 12.099
+        }
+      }
+    },
+    {
+      "label": "gpu-leap-short30",
+      "model_id": "leap-xe-voc",
+      "audio_seconds": 30.0,
+      "chunks": 10,
+      "backends": {
+        "cuda": {
+          "runs": 2,
+          "device": "fusion<cubecl<cuda>>",
+          "settings": {
+            "profile": "custom-context",
+            "linear_layout": "flattened",
+            "host_threads": 1,
+            "group_tile": 90,
+            "query_tile": 259,
+            "frequency_group_tile": 259,
+            "frequency_query_tile": 90
+          },
+          "total_seconds": 27.64,
+          "model_load_seconds": 1.648,
+          "model_seconds": 25.602,
+          "first_call_seconds": 2.651,
+          "steady_call_seconds": 2.55,
+          "rtf": 0.921
+        },
+        "wgpu": {
+          "runs": 2,
+          "device": "fusion<cubecl<wgpu<wgsl>>>",
+          "settings": {
+            "profile": "custom-context",
+            "linear_layout": "batched",
+            "host_threads": 1,
+            "group_tile": 90,
+            "query_tile": 259,
+            "frequency_group_tile": 259,
+            "frequency_query_tile": 90
+          },
+          "total_seconds": 39.049,
+          "model_load_seconds": 1.681,
+          "model_seconds": 36.965,
+          "first_call_seconds": 7.958,
+          "steady_call_seconds": 3.223,
+          "rtf": 1.302
+        }
+      }
+    }
+  ],
+  "binary_commit": "fa6efbf",
+  "inputs": {
+    "3s": "NO_TRACK/runs/clip-3s.wav",
+    "30s": "NO_TRACK/runs/clip-30s.wav",
+    "note": "fixed float32 stereo 44.1 kHz clips shipped in the transfer assets"
+  },
+  "notes": [
+    "RoFormer short = --chunk-samples 132300 --overlap 1; native = manifest context (Leap 881559, HyperACE 960000 samples)",
+    "one warm-up pass per GPU row before two measured passes; CPU rows are not warmed",
+    "WGPU first calls stay slower than steady calls even with a warm autotune cache: shader pipelines are rebuilt per process; CUDA loads cached PTX",
+    "one WGPU 9482 run segfaulted in the NVIDIA Vulkan driver thread ([vkrt] Analysis, libEGL_nvidia 535) after publishing its outputs; both runs are complete and included"
+  ],
+  "addenda": {
+    "scope": "HyperACE rows re-measured on CUDA after the SegmModel GEMM convolution (c252cdf); same inputs and settings otherwise",
+    "entries": [
+      {
+        "label": "gpu-hace-short30",
+        "backend": "cuda",
+        "binary_commit": "c252cdf",
+        "conv_strategy": "gemm",
+        "runs": 2,
+        "total_seconds": 18.432,
+        "model_load_seconds": 1.77,
+        "model_seconds": 16.266,
+        "first_call_seconds": 1.752,
+        "steady_call_seconds": 1.613,
+        "rtf": 0.614
+      },
+      {
+        "label": "gpu-hace-native3",
+        "backend": "cuda",
+        "binary_commit": "c252cdf",
+        "conv_strategy": "gemm",
+        "runs": 2,
+        "total_seconds": 19.914,
+        "model_load_seconds": 1.776,
+        "model_seconds": 17.937,
+        "first_call_seconds": 17.937,
+        "steady_call_seconds": null,
+        "rtf": 6.638
+      }
+    ]
+  }
+}

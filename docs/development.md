@@ -2,7 +2,10 @@
 
 工具链固定为 Rust 1.92.0 / Burn 0.21.0，提交 Cargo.lock。默认 CPU 后端为纯 Rust 的 Burn Flex；
 `--backend ndarray` 保留旧 NdArray，`cpu-opt` 与 macOS `accelerate`（系统 BLAS）只作用于它。
-`wgpu` 为可选 GPU feature，启用 Burn fusion 与 autotune。`convert` 只增加 checkpoint 读取工具，
+`wgpu` 为可选 GPU feature，启用 Burn fusion 与 autotune。`cuda` 同样启用 fusion 与 autotune，
+经 CubeCL 用 NVRTC 在运行时编译内核，并动态加载 libcuda / libnvrtc；构建时 cudarc 从 PATH 中的
+`nvcc --version` 确定绑定的 CUDA 版本，没有 nvcc 时用 `CUDARC_CUDA_VERSION`（如 12.2 写 `12020`）指定，
+否则会回落到最新版本绑定，可能与旧驱动不匹配。`convert` 只增加 checkpoint 读取工具，
 发布分离程序可不启用。
 
 ```bash
@@ -10,14 +13,22 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets --features convert --locked -- -D warnings
 cargo test --workspace --features convert --locked
 cargo build --release --features convert,wgpu,accelerate,onnx,cpu-opt --locked # macOS
+PATH=/usr/local/cuda/bin:$PATH cargo build --release --features convert,wgpu,cuda,onnx,cpu-opt --locked # Linux + NVIDIA
+# 仅在有 NVIDIA GPU 的机器上：硬件契约测试（合成模型 CUDA vs Flex、GEMM 卷积、显存分配失败可见）。
+cargo test --release --locked --features convert,cuda,onnx,cpu-opt --test cuda_contracts --test cuda_device_failure
 ```
 
-CI 使用原创合成音频与微型权重，不下载真实权重或商业歌曲。GPU 编译检查不等于 GPU 执行测试。
+CI 使用原创合成音频与微型权重，不下载真实权重或商业歌曲。GPU 编译检查不等于 GPU 执行测试；
+CI 对 `cuda` 只做 `cargo check`（固定 `CUDARC_CUDA_VERSION=12020`）。
 本机实际硬件执行与 30 秒音频结果记录在 `docs/performance.md` 和 `docs/reports`。
 
 WGPU autotune 在每个新的算子形状首次出现时实测候选内核，在仓库内运行时缓存于
 `target/autotune`，仓库外运行时位于系统用户缓存目录的 `cubecl`。首次使用某模型与上下文可能
 多花数十秒到数分钟，`timings.model_call_seconds[0]` 会体现；测速须先预热并分开报告冷/热耗时。
+CUDA 使用同一 autotune 缓存，另把 NVRTC 生成的 PTX 存入同一缓存根下的
+`ptx-sm<算力>/<模型文件名>/`；未设置时每个进程都要重新编译全部内核（Tesla P4 上 MDX 约 12 秒、
+RoFormer 短块约 25 秒）。更换 GPU 架构时自动使用新目录；降级驱动或 CubeCL 版本变化后可删除该目录。
+在 cubecl.toml / Burn.toml 的 `[compilation] cache` 中可显式指定位置，此时不再按模型分区。
 
 开发期独立 PyTorch 参考环境只存在于 NO_TRACK。
 
@@ -40,7 +51,14 @@ NO_TRACK/.venv-parity/bin/python scripts/verify_parity.py \
 
 单 chunk FP32 波形门槛为 max_abs < 1e-3 且 waveform SNR > 50 dB。这是与固定 Python
 forward 的一致性门槛，不是干净源 SDR，也不能替代整轨边界和数据集质量回归。
-PyTorch 2.2.2 是 Intel macOS 的实际验证版本；其它系统可另建环境，但报告必须记录版本。
+PyTorch 2.2.2 是 Intel macOS 的实际验证版本；Linux 上使用同版本的 CPU wheel（`torch==2.2.2+cpu`，
+来自 PyTorch CPU 索引或其镜像），其余依赖按 requirements 安装；报告会记录实际版本。
+
+全部模型可用一条命令按后端复核，结果汇总到 `summary.json`：
+
+```bash
+ANCHA_BACKENDS="cuda wgpu cpu" bash scripts/parity-matrix.sh
+```
 
 Deux 使用精确导出的 librosa 二值 Mel 索引：
 
@@ -97,8 +115,9 @@ Flex CPU 的卷积/矩阵乘走 Rayon，可在启动前设置 `RAYON_NUM_THREADS
 `NO_TRACK/.venv-parity`（在新机器按 requirements 重建）、macOS 二进制、本机运行产物和 autotune
 缓存；autotune 结果与 GPU、驱动和 CubeCL 版本绑定，新机器首次运行会重新调优。
 
-Linux 构建去掉 `accelerate`：`cargo build --release --locked --features convert,wgpu,onnx,cpu-opt`。
-当前只有 CPU（Flex / NdArray）与 WGPU 后端，Linux 上 WGPU 走 Vulkan；CUDA 后端尚未实现，
-需要新增 Burn `cuda` feature 与后端分支，并重新做 parity。迁移后先用 `scripts/verify_parity.py`、
-`scripts/verify_mdx.py` 复核数值，再用 `scripts/benchmark-matrix.sh` 与
-[速度优化记录](speed-optimization.md) 的 profile 记录对照；对照基线可从提交 `4221ed0` 构建。
+Linux 构建去掉 `accelerate`：`cargo build --release --locked --features convert,wgpu,onnx,cpu-opt`，
+有 NVIDIA GPU 时再加 `cuda`。后端为 CPU（Flex / NdArray）、WGPU（Linux 上走 Vulkan）与 CUDA。
+迁移后先用 `scripts/parity-matrix.sh` 按后端复核数值，再用 `scripts/benchmark-backends.sh`
+（同一二进制、多后端串行，先预热缓存）和 `scripts/benchmark-matrix.sh`（新旧二进制对比）测速，
+与 [速度优化记录](speed-optimization.md)、[CUDA 记录](cuda.md) 的 profile 记录对照；
+对照基线可从提交 `4221ed0`（上一轮）或 `f55bfb1`（CUDA 之前）构建。

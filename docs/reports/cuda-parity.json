@@ -1,0 +1,216 @@
+{
+  "scope": "Rust run vs pinned PyTorch (RoFormer, one 132300-sample chunk) and UVR + ONNX Runtime (MDX); threshold max_abs < 1e-3 and waveform SNR > 50 dB; implementation consistency, not SDR",
+  "rust_binary_sha256": "c062ae256b6776b05dbdc332058b0072fb5f91f1a1e4693f792b506a61b862a8",
+  "passed": 8,
+  "total": 8,
+  "entries": [
+    {
+      "run": "UVR-MDX-NET-Inst_HQ_2-cuda",
+      "status": "passed",
+      "rust_backend": "cuda",
+      "rust_device": "Cuda(0)",
+      "model_id": "mdx-inst-hq-2",
+      "rust_profile": "uvr-single-pass",
+      "linear_layout": null,
+      "conv_strategy": "gemm",
+      "reference": {
+        "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+        "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+        "torch": "2.2.2+cpu",
+        "ort": "1.20.1",
+        "ort_threads": 4
+      },
+      "comparisons": [
+        {
+          "stem": "instrumental",
+          "max_abs": 9.462237358093262e-07,
+          "waveform_snr_db": 122.5032567209197,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "UVR_MDXNET_9482-cuda",
+      "status": "passed",
+      "rust_backend": "cuda",
+      "rust_device": "Cuda(0)",
+      "model_id": "mdx-9482",
+      "rust_profile": "uvr-single-pass",
+      "linear_layout": null,
+      "conv_strategy": "gemm",
+      "reference": {
+        "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+        "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+        "torch": "2.2.2+cpu",
+        "ort": "1.20.1",
+        "ort_threads": 4
+      },
+      "comparisons": [
+        {
+          "stem": "all_vocals",
+          "max_abs": 5.960464477539062e-07,
+          "waveform_snr_db": 126.39800935798138,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "UVR_MDXNET_KARA-cuda",
+      "status": "passed",
+      "rust_backend": "cuda",
+      "rust_device": "Cuda(0)",
+      "model_id": "mdx-kara",
+      "rust_profile": "uvr-single-pass",
+      "linear_layout": null,
+      "conv_strategy": "gemm",
+      "reference": {
+        "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+        "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+        "torch": "2.2.2+cpu",
+        "ort": "1.20.1",
+        "ort_threads": 4
+      },
+      "comparisons": [
+        {
+          "stem": "lead_vocals",
+          "max_abs": 3.8743019104003906e-07,
+          "waveform_snr_db": 129.3630984575044,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "UVR_MDXNET_KARA_2-cuda",
+      "status": "passed",
+      "rust_backend": "cuda",
+      "rust_device": "Cuda(0)",
+      "model_id": "mdx-kara-2",
+      "rust_profile": "uvr-single-pass",
+      "linear_layout": null,
+      "conv_strategy": "gemm",
+      "reference": {
+        "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+        "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+        "torch": "2.2.2+cpu",
+        "ort": "1.20.1",
+        "ort_threads": 4
+      },
+      "comparisons": [
+        {
+          "stem": "karaoke_mix",
+          "max_abs": 6.556510925292969e-07,
+          "waveform_snr_db": 127.04619846840632,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "deux-cuda",
+      "status": "passed",
+      "rust_backend": "cuda",
+      "rust_device": "fusion<cubecl<cuda>>",
+      "model_id": "deux",
+      "rust_profile": "custom-context",
+      "linear_layout": "flattened",
+      "conv_strategy": null,
+      "reference": {
+        "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+        "source_revision": "MSST/84b1eac0887756b4f1a9d7a1ff49105939749ed2",
+        "torch": "2.2.2+cpu",
+        "numpy": "1.26.4",
+        "threads": 6
+      },
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 8.344650268554688e-07,
+          "waveform_snr_db": 125.39558386183907,
+          "status": "passed"
+        },
+        {
+          "stem": "instrumental",
+          "max_abs": 8.940696716308594e-07,
+          "waveform_snr_db": 122.01397548052077,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "hace-inst-cuda",
+      "status": "passed",
+      "rust_backend": "cuda",
+      "rust_device": "fusion<cubecl<cuda>>",
+      "model_id": "hyperace-v2-inst",
+      "rust_profile": "custom-context",
+      "linear_layout": "flattened",
+      "conv_strategy": "gemm",
+      "reference": {
+        "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+        "source_revision": "HyperACE/5b1f8283125d5e4a3614d0e3635a636e09c84059;bs_roformer.py=48571e20d70ea8f245cffc6afbfa279f62042e7ba16fbaa3fe43dd2cbc25e1db",
+        "torch": "2.2.2+cpu",
+        "numpy": "1.26.4",
+        "threads": 6
+      },
+      "comparisons": [
+        {
+          "stem": "instrumental",
+          "max_abs": 7.525086402893066e-06,
+          "waveform_snr_db": 117.30462130004042,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "hace-voc-cuda",
+      "status": "passed",
+      "rust_backend": "cuda",
+      "rust_device": "fusion<cubecl<cuda>>",
+      "model_id": "hyperace-v2-voc",
+      "rust_profile": "custom-context",
+      "linear_layout": "flattened",
+      "conv_strategy": "gemm",
+      "reference": {
+        "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+        "source_revision": "HyperACE/5b1f8283125d5e4a3614d0e3635a636e09c84059;bs_roformer.py=48571e20d70ea8f245cffc6afbfa279f62042e7ba16fbaa3fe43dd2cbc25e1db",
+        "torch": "2.2.2+cpu",
+        "numpy": "1.26.4",
+        "threads": 6
+      },
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 5.900859832763672e-06,
+          "waveform_snr_db": 120.46728616295846,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "leap-cuda",
+      "status": "passed",
+      "rust_backend": "cuda",
+      "rust_device": "fusion<cubecl<cuda>>",
+      "model_id": "leap-xe-voc",
+      "rust_profile": "custom-context",
+      "linear_layout": "flattened",
+      "conv_strategy": null,
+      "reference": {
+        "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+        "source_revision": "MSST/84b1eac0887756b4f1a9d7a1ff49105939749ed2",
+        "torch": "2.2.2+cpu",
+        "numpy": "1.26.4",
+        "threads": 6
+      },
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 6.362795829772949e-06,
+          "waveform_snr_db": 107.59730236396301,
+          "status": "passed"
+        }
+      ]
+    }
+  ],
+  "platform": "Linux 5.14 x86_64, Xeon E5-2673 v3; NVIDIA Tesla P4 (sm_61, driver 535.288.01, CUDA 12.2); reference PyTorch 2.2.2+cpu / ONNX Runtime 1.20.1 on CPU",
+  "binary_commit": "c252cdf (CUDA defaults: flattened projections, GEMM convolution for MDX and HyperACE SegmModel)"
+}
