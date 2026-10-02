@@ -1,0 +1,585 @@
+{
+  "scope": "serial runs, identical PCM / weights / audio context, each binary at its defaults; medians; warm WGPU autotune cache; not SDR or quality evaluation",
+  "platform": "Darwin-x86_64",
+  "binaries_sha256": {
+    "old": "2faf1d77ff867a3bb71b8bd31a91b5e6dbd74cb2e103e93053d0d8f5d8201ec4",
+    "new": "ad4e2402a7497778e575dd5c70a54dc9ff1db2b7798565cebf5e8b12d98cf376"
+  },
+  "entries": [
+    {
+      "label": "cpu-deux-short3",
+      "model_id": "deux",
+      "audio_seconds": 3.0,
+      "chunks": 1,
+      "baseline": {
+        "runs": 1,
+        "backend": "cpu-ndarray",
+        "profile": "custom-context",
+        "tiles": [
+          4,
+          128,
+          null,
+          null
+        ],
+        "host_threads": null,
+        "conv_strategy": null,
+        "total_seconds": 42.487686757,
+        "model_seconds": 41.088811976,
+        "first_call_seconds": null,
+        "steady_call_seconds": null,
+        "rtf": 14.162562252333332
+      },
+      "optimized": {
+        "runs": 1,
+        "backend": "cpu-flex",
+        "profile": "custom-context",
+        "tiles": [
+          5,
+          301,
+          26,
+          60
+        ],
+        "host_threads": 12,
+        "conv_strategy": null,
+        "total_seconds": 8.899063091,
+        "model_seconds": 7.317764015,
+        "first_call_seconds": 7.317764015,
+        "steady_call_seconds": null,
+        "rtf": 2.966354363666667
+      },
+      "total_speedup": 4.7743999927328975
+    },
+    {
+      "label": "cpu-hace-short3",
+      "model_id": "hyperace-v2-voc",
+      "audio_seconds": 3.0,
+      "chunks": 1,
+      "baseline": {
+        "runs": 1,
+        "backend": "cpu-ndarray",
+        "profile": "custom-context",
+        "tiles": [
+          4,
+          128,
+          null,
+          null
+        ],
+        "host_threads": null,
+        "conv_strategy": null,
+        "total_seconds": 40.954999668,
+        "model_seconds": 40.483103687,
+        "first_call_seconds": null,
+        "steady_call_seconds": null,
+        "rtf": 13.651666556
+      },
+      "optimized": {
+        "runs": 1,
+        "backend": "cpu-flex",
+        "profile": "custom-context",
+        "tiles": [
+          6,
+          259,
+          22,
+          62
+        ],
+        "host_threads": 12,
+        "conv_strategy": null,
+        "total_seconds": 9.320695237,
+        "model_seconds": 8.7846451,
+        "first_call_seconds": 8.7846451,
+        "steady_call_seconds": null,
+        "rtf": 3.1068984123333334
+      },
+      "total_speedup": 4.393985494281857
+    },
+    {
+      "label": "cpu-hq2-3",
+      "model_id": "mdx-inst-hq-2",
+      "audio_seconds": 3.0,
+      "chunks": 1,
+      "baseline": {
+        "runs": 1,
+        "backend": "cpu-ndarray",
+        "profile": "uvr-single-pass",
+        "tiles": null,
+        "host_threads": null,
+        "conv_strategy": null,
+        "total_seconds": 21.512123298,
+        "model_seconds": 21.236734505,
+        "first_call_seconds": null,
+        "steady_call_seconds": null,
+        "rtf": 7.170707766
+      },
+      "optimized": {
+        "runs": 1,
+        "backend": "cpu-flex",
+        "profile": "uvr-single-pass",
+        "tiles": null,
+        "host_threads": null,
+        "conv_strategy": "backend",
+        "total_seconds": 6.675602162,
+        "model_seconds": 6.459592506,
+        "first_call_seconds": 6.459592506,
+        "steady_call_seconds": null,
+        "rtf": 2.2252007206666664
+      },
+      "total_speedup": 3.2224993005806986
+    },
+    {
+      "label": "cpu-kara2-3",
+      "model_id": "mdx-kara-2",
+      "audio_seconds": 3.0,
+      "chunks": 1,
+      "baseline": {
+        "runs": 2,
+        "backend": "cpu-ndarray",
+        "profile": "uvr-single-pass",
+        "tiles": null,
+        "host_threads": null,
+        "conv_strategy": null,
+        "total_seconds": 12.832845885000001,
+        "model_seconds": 12.665737575000001,
+        "first_call_seconds": null,
+        "steady_call_seconds": null,
+        "rtf": 4.277615295
+      },
+      "optimized": {
+        "runs": 2,
+        "backend": "cpu-flex",
+        "profile": "uvr-single-pass",
+        "tiles": null,
+        "host_threads": null,
+        "conv_strategy": "backend",
+        "total_seconds": 4.135492634,
+        "model_seconds": 3.967011469,
+        "first_call_seconds": 3.967011469,
+        "steady_call_seconds": null,
+        "rtf": 1.3784975446666667
+      },
+      "total_speedup": 3.103099683818709
+    },
+    {
+      "label": "cpu-kara2-30",
+      "model_id": "mdx-kara-2",
+      "audio_seconds": 30.0,
+      "chunks": 6,
+      "baseline": {
+        "runs": 1,
+        "backend": "cpu-ndarray",
+        "profile": "uvr-single-pass",
+        "tiles": null,
+        "host_threads": null,
+        "conv_strategy": null,
+        "total_seconds": 79.417248015,
+        "model_seconds": 78.962075018,
+        "first_call_seconds": null,
+        "steady_call_seconds": null,
+        "rtf": 2.6472416005
+      },
+      "optimized": {
+        "runs": 1,
+        "backend": "cpu-flex",
+        "profile": "uvr-single-pass",
+        "tiles": null,
+        "host_threads": null,
+        "conv_strategy": "backend",
+        "total_seconds": 25.841337285,
+        "model_seconds": 25.391057126,
+        "first_call_seconds": 4.085923995,
+        "steady_call_seconds": 4.290208208,
+        "rtf": 0.8613779095
+      },
+      "total_speedup": 3.073263861661639
+    },
+    {
+      "label": "cpu-leap-short3",
+      "model_id": "leap-xe-voc",
+      "audio_seconds": 3.0,
+      "chunks": 1,
+      "baseline": {
+        "runs": 2,
+        "backend": "cpu-ndarray",
+        "profile": "custom-context",
+        "tiles": [
+          4,
+          128,
+          null,
+          null
+        ],
+        "host_threads": null,
+        "conv_strategy": null,
+        "total_seconds": 70.92143349099999,
+        "model_seconds": 70.476482325,
+        "first_call_seconds": null,
+        "steady_call_seconds": null,
+        "rtf": 23.64047783033333
+      },
+      "optimized": {
+        "runs": 2,
+        "backend": "cpu-flex",
+        "profile": "custom-context",
+        "tiles": [
+          8,
+          259,
+          22,
+          90
+        ],
+        "host_threads": 12,
+        "conv_strategy": null,
+        "total_seconds": 12.194145741500002,
+        "model_seconds": 11.656445359,
+        "first_call_seconds": 11.656445359,
+        "steady_call_seconds": null,
+        "rtf": 4.064715247166667
+      },
+      "total_speedup": 5.816023114242027
+    },
+    {
+      "label": "gpu-9482-30",
+      "model_id": "mdx-9482",
+      "audio_seconds": 30.0,
+      "chunks": 6,
+      "baseline": {
+        "runs": 1,
+        "backend": "wgpu",
+        "profile": "uvr-single-pass",
+        "tiles": null,
+        "host_threads": null,
+        "conv_strategy": null,
+        "total_seconds": 6.683953009,
+        "model_seconds": 6.154693379999999,
+        "first_call_seconds": null,
+        "steady_call_seconds": null,
+        "rtf": 0.22279843363333332
+      },
+      "optimized": {
+        "runs": 1,
+        "backend": "wgpu",
+        "profile": "uvr-single-pass",
+        "tiles": null,
+        "host_threads": null,
+        "conv_strategy": "gemm",
+        "total_seconds": 4.565034883,
+        "model_seconds": 4.027777086,
+        "first_call_seconds": 0.809473154,
+        "steady_call_seconds": 0.641493617,
+        "rtf": 0.15216782943333335
+      },
+      "total_speedup": 1.4641625267510578
+    },
+    {
+      "label": "gpu-deux-short30",
+      "model_id": "deux",
+      "audio_seconds": 30.0,
+      "chunks": 10,
+      "baseline": {
+        "runs": 2,
+        "backend": "wgpu",
+        "profile": "custom-context",
+        "tiles": [
+          4,
+          128,
+          null,
+          null
+        ],
+        "host_threads": null,
+        "conv_strategy": null,
+        "total_seconds": 29.929751289000002,
+        "model_seconds": 27.4871145735,
+        "first_call_seconds": null,
+        "steady_call_seconds": null,
+        "rtf": 0.9976583763
+      },
+      "optimized": {
+        "runs": 2,
+        "backend": "wgpu",
+        "profile": "custom-context",
+        "tiles": [
+          60,
+          301,
+          301,
+          60
+        ],
+        "host_threads": 1,
+        "conv_strategy": null,
+        "total_seconds": 30.673451596,
+        "model_seconds": 27.555475769,
+        "first_call_seconds": 3.6030348329999997,
+        "steady_call_seconds": 2.662580512,
+        "rtf": 1.0224483865333334
+      },
+      "total_speedup": 0.9757542673450881
+    },
+    {
+      "label": "gpu-hace-native3",
+      "model_id": "hyperace-v2-voc",
+      "audio_seconds": 3.0,
+      "chunks": 1,
+      "baseline": {
+        "runs": 1,
+        "backend": "wgpu",
+        "profile": "native-context",
+        "tiles": [
+          4,
+          128,
+          null,
+          null
+        ],
+        "host_threads": null,
+        "conv_strategy": null,
+        "total_seconds": 50.138911648,
+        "model_seconds": 49.171422127,
+        "first_call_seconds": null,
+        "steady_call_seconds": null,
+        "rtf": 16.71297054933333
+      },
+      "optimized": {
+        "runs": 1,
+        "backend": "wgpu",
+        "profile": "native-context",
+        "tiles": [
+          4,
+          1876,
+          1876,
+          62
+        ],
+        "host_threads": 1,
+        "conv_strategy": null,
+        "total_seconds": 46.068046089,
+        "model_seconds": 45.07737409,
+        "first_call_seconds": 45.07737409,
+        "steady_call_seconds": null,
+        "rtf": 15.356015363
+      },
+      "total_speedup": 1.0883663602996183
+    },
+    {
+      "label": "gpu-hace-short30",
+      "model_id": "hyperace-v2-voc",
+      "audio_seconds": 30.0,
+      "chunks": 10,
+      "baseline": {
+        "runs": 2,
+        "backend": "wgpu",
+        "profile": "custom-context",
+        "tiles": [
+          4,
+          128,
+          null,
+          null
+        ],
+        "host_threads": null,
+        "conv_strategy": null,
+        "total_seconds": 46.5384336505,
+        "model_seconds": 45.512714429,
+        "first_call_seconds": null,
+        "steady_call_seconds": null,
+        "rtf": 1.5512811216833333
+      },
+      "optimized": {
+        "runs": 2,
+        "backend": "wgpu",
+        "profile": "custom-context",
+        "tiles": [
+          62,
+          259,
+          259,
+          62
+        ],
+        "host_threads": 1,
+        "conv_strategy": null,
+        "total_seconds": 28.118870684,
+        "model_seconds": 27.0551710995,
+        "first_call_seconds": 2.997386761,
+        "steady_call_seconds": 2.6663995285000004,
+        "rtf": 0.9372956894666666
+      },
+      "total_speedup": 1.6550605525200186
+    },
+    {
+      "label": "gpu-hq2-30",
+      "model_id": "mdx-inst-hq-2",
+      "audio_seconds": 30.0,
+      "chunks": 6,
+      "baseline": {
+        "runs": 2,
+        "backend": "wgpu",
+        "profile": "uvr-single-pass",
+        "tiles": null,
+        "host_threads": null,
+        "conv_strategy": null,
+        "total_seconds": 21.6182785805,
+        "model_seconds": 20.872597436,
+        "first_call_seconds": null,
+        "steady_call_seconds": null,
+        "rtf": 0.7206092860166666
+      },
+      "optimized": {
+        "runs": 2,
+        "backend": "wgpu",
+        "profile": "uvr-single-pass",
+        "tiles": null,
+        "host_threads": null,
+        "conv_strategy": "gemm",
+        "total_seconds": 10.9601049495,
+        "model_seconds": 10.238817720499998,
+        "first_call_seconds": 1.832381659,
+        "steady_call_seconds": 1.6804257644999998,
+        "rtf": 0.36533683164999997
+      },
+      "total_speedup": 1.9724517858276738
+    },
+    {
+      "label": "gpu-kara-30",
+      "model_id": "mdx-kara",
+      "audio_seconds": 30.0,
+      "chunks": 6,
+      "baseline": {
+        "runs": 1,
+        "backend": "wgpu",
+        "profile": "uvr-single-pass",
+        "tiles": null,
+        "host_threads": null,
+        "conv_strategy": null,
+        "total_seconds": 6.6600776360000005,
+        "model_seconds": 6.149570099000001,
+        "first_call_seconds": null,
+        "steady_call_seconds": null,
+        "rtf": 0.22200258786666668
+      },
+      "optimized": {
+        "runs": 1,
+        "backend": "wgpu",
+        "profile": "uvr-single-pass",
+        "tiles": null,
+        "host_threads": null,
+        "conv_strategy": "gemm",
+        "total_seconds": 4.533373823,
+        "model_seconds": 4.003818419,
+        "first_call_seconds": 0.794400492,
+        "steady_call_seconds": 0.642520508,
+        "rtf": 0.15111246076666665
+      },
+      "total_speedup": 1.4691216511222178
+    },
+    {
+      "label": "gpu-kara2-30",
+      "model_id": "mdx-kara-2",
+      "audio_seconds": 30.0,
+      "chunks": 6,
+      "baseline": {
+        "runs": 2,
+        "backend": "wgpu",
+        "profile": "uvr-single-pass",
+        "tiles": null,
+        "host_threads": null,
+        "conv_strategy": null,
+        "total_seconds": 14.51551095,
+        "model_seconds": 13.908356988999998,
+        "first_call_seconds": null,
+        "steady_call_seconds": null,
+        "rtf": 0.483850365
+      },
+      "optimized": {
+        "runs": 2,
+        "backend": "wgpu",
+        "profile": "uvr-single-pass",
+        "tiles": null,
+        "host_threads": null,
+        "conv_strategy": "gemm",
+        "total_seconds": 7.2515742030000006,
+        "model_seconds": 6.6910735045,
+        "first_call_seconds": 1.2149957335,
+        "steady_call_seconds": 1.0966784660000002,
+        "rtf": 0.2417191401
+      },
+      "total_speedup": 2.0017048083152598
+    },
+    {
+      "label": "gpu-leap-native3",
+      "model_id": "leap-xe-voc",
+      "audio_seconds": 3.0,
+      "chunks": 1,
+      "baseline": {
+        "runs": 1,
+        "backend": "wgpu",
+        "profile": "native-context",
+        "tiles": [
+          4,
+          128,
+          null,
+          null
+        ],
+        "host_threads": null,
+        "conv_strategy": null,
+        "total_seconds": 70.47818801,
+        "model_seconds": 69.720071281,
+        "first_call_seconds": null,
+        "steady_call_seconds": null,
+        "rtf": 23.492729336666667
+      },
+      "optimized": {
+        "runs": 1,
+        "backend": "wgpu",
+        "profile": "native-context",
+        "tiles": [
+          5,
+          1722,
+          1722,
+          90
+        ],
+        "host_threads": 1,
+        "conv_strategy": null,
+        "total_seconds": 66.823247791,
+        "model_seconds": 65.953542671,
+        "first_call_seconds": 65.953542671,
+        "steady_call_seconds": null,
+        "rtf": 22.274415930333333
+      },
+      "total_speedup": 1.0546956387159059
+    },
+    {
+      "label": "gpu-leap-short30",
+      "model_id": "leap-xe-voc",
+      "audio_seconds": 30.0,
+      "chunks": 10,
+      "baseline": {
+        "runs": 2,
+        "backend": "wgpu",
+        "profile": "custom-context",
+        "tiles": [
+          4,
+          128,
+          null,
+          null
+        ],
+        "host_threads": null,
+        "conv_strategy": null,
+        "total_seconds": 45.136510973499995,
+        "model_seconds": 44.2332526575,
+        "first_call_seconds": null,
+        "steady_call_seconds": null,
+        "rtf": 1.5045503657833332
+      },
+      "optimized": {
+        "runs": 2,
+        "backend": "wgpu",
+        "profile": "custom-context",
+        "tiles": [
+          90,
+          259,
+          259,
+          90
+        ],
+        "host_threads": 1,
+        "conv_strategy": null,
+        "total_seconds": 38.263516566,
+        "model_seconds": 37.247303028,
+        "first_call_seconds": 3.9080790409999997,
+        "steady_call_seconds": 3.7016999674999997,
+        "rtf": 1.2754505522
+      },
+      "total_speedup": 1.1796226542755133
+    }
+  ]
+}

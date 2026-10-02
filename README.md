@@ -12,10 +12,11 @@ float32 WAV 输出和可追溯的 run.json。模型与素材均保留在 NO_TRAC
 | Leap Xe instrumental | 同架构配置与转换预设已实现；该 checkpoint 尚未单独验收 |
 | Deux | Mel 索引固定导出、双原生输出头已实现；CPU / WGPU 分离及两个输出的 PyTorch 波形比对通过 |
 | HyperACE v2 vocals / instrumental | 完整 SegmModel 已实现；两个 checkpoint 的 WGPU 波形比对通过，vocals 另通过 CPU 比对 |
-| 经典 MDX ONNX | 9482、KARA、KARA 2、Inst HQ 2 原生 Rust 推理；四模型 WGPU 对齐 UVR，KARA 2 另通过 CPU 比对 |
+| 经典 MDX ONNX | 9482、KARA、KARA 2、Inst HQ 2 原生 Rust 推理；四模型 WGPU 对齐 UVR，KARA 2 / HQ 2 另通过 CPU 比对 |
 
-HyperACE 与经典 MDX 的适配、使用和任务语义见 [新增适配文档](docs/adapters.md)，本轮实际速度
-见 [适配性能记录](docs/adapters-performance.md)。目前仍未完成 CUDA、Leap inst 独立验收与三后端全量验收。
+HyperACE 与经典 MDX 的适配、使用和任务语义见 [新增适配文档](docs/adapters.md)。
+CPU / WGPU 推理速度审计、算子折叠与当前实测见 [速度优化记录](docs/speed-optimization.md)；
+上一轮速度见 [适配性能记录](docs/adapters-performance.md)。目前仍未完成 CUDA、Leap inst 独立验收与三后端全量验收。
 早期 Leap / Deux 的测试和优化保留在 [性能记录](docs/performance.md)。
 
 ## 构建与本机使用
@@ -51,15 +52,17 @@ target/release/ancha doctor --backend cpu
 ```bash
 target/release/ancha separate 'NO_TRACK/test_file/ReoNa - Amore.mp3' \
   --model NO_TRACK/models/leap-xe-voc --backend wgpu \
-  --query-tile 512 --group-tile 16 \
   --start 30 --duration 3 --chunk-samples 132300 --overlap 1 \
   --output NO_TRACK/runs/my-3s
 ```
 
 `--chunk-samples` / `--overlap` 会改变分离上下文，标记为 `custom-context`；它们不是等质量加速。
-`--query-tile` / `--group-tile` 则只调节完整 K/V 注意力的内部计算分块。
+attention 分块默认按 `--max-score-mib`（512）自动选择，`--query-tile` / `--group-tile`
+可显式指定；它们都只调节完整 K/V 注意力的内部计算分块。
 默认保留本机实测更快的批量投影布局，`--flatten-linear` 提供实验性替代布局供消融。
 CPU、WGPU 必须显式选择；没有静默后端回退。Ctrl+C 可在模型层／chunk 边界取消。
+`--backend cpu` 使用纯 Rust Burn Flex，`--backend ndarray` 保留旧 CPU 后端供对比。
+WGPU 启用 autotune：某模型与上下文首次运行会先实测内核（可达数分钟），结果缓存后复用。
 
 ## 新工作区准备模型
 

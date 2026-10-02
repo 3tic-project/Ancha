@@ -1,0 +1,422 @@
+{
+  "scope": "hotspot shares of the current default execution, 3-second clip, single chunk; RoFormer uses --chunk-samples 132300 --overlap 1, MDX its native chunk",
+  "binary_sha256": "b1cf5c0688818beab04e97328598d077e934dd4f6ce0978eb24ad25ee321ab6c",
+  "method": {
+    "wgpu-kernels": "CUBECL_DEBUG_OPTION=profile; synchronizes after every kernel, so only shares and counts are meaningful",
+    "cpu-samples": "macOS sample over the first seconds of the run (includes model load); top-of-stack samples, idle/wait frames excluded, grouped by symbol pattern"
+  },
+  "platform": "macOS-15.7.7 x86_64, i5-12400, RX 580 8 GB (Metal via WGPU)",
+  "profiles": [
+    {
+      "label": "wgpu-leap-short",
+      "kind": "wgpu-kernels",
+      "kernels": 1146,
+      "profiled_ms": 5835.2,
+      "shares": [
+        {
+          "kernel": "MatmulEntry",
+          "count": 310,
+          "percent": 70.6
+        },
+        {
+          "kernel": "KernelBinop",
+          "count": 293,
+          "percent": 8.5
+        },
+        {
+          "kernel": "ElemwiseFuse",
+          "count": 166,
+          "percent": 6.9
+        },
+        {
+          "kernel": "CopyKernel",
+          "count": 133,
+          "percent": 5.1
+        },
+        {
+          "kernel": "ReduceKernel",
+          "count": 70,
+          "percent": 4.1
+        },
+        {
+          "kernel": "ReduceKernelFused",
+          "count": 66,
+          "percent": 1.9
+        },
+        {
+          "kernel": "SelectKernel",
+          "count": 32,
+          "percent": 0.9
+        },
+        {
+          "kernel": "UnaryFloat",
+          "count": 24,
+          "percent": 0.6
+        }
+      ]
+    },
+    {
+      "label": "wgpu-deux-short",
+      "kind": "wgpu-kernels",
+      "kernels": 2098,
+      "profiled_ms": 6888.0,
+      "shares": [
+        {
+          "kernel": "MatmulEntry",
+          "count": 410,
+          "percent": 58.9
+        },
+        {
+          "kernel": "KernelBinop",
+          "count": 531,
+          "percent": 11.1
+        },
+        {
+          "kernel": "ReduceKernel",
+          "count": 109,
+          "percent": 7.3
+        },
+        {
+          "kernel": "UnaryFloat",
+          "count": 262,
+          "percent": 5.2
+        },
+        {
+          "kernel": "ElemwiseFuse",
+          "count": 153,
+          "percent": 4.7
+        },
+        {
+          "kernel": "KernelScalarBinop",
+          "count": 225,
+          "percent": 4.4
+        },
+        {
+          "kernel": "SliceAssignKernel",
+          "count": 116,
+          "percent": 2.3
+        },
+        {
+          "kernel": "CopyKernel",
+          "count": 102,
+          "percent": 2.1
+        },
+        {
+          "kernel": "ReduceKernelFused",
+          "count": 49,
+          "percent": 1.1
+        },
+        {
+          "kernel": "SliceKernel",
+          "count": 37,
+          "percent": 0.7
+        },
+        {
+          "kernel": "MaskFillKernel",
+          "count": 37,
+          "percent": 0.7
+        },
+        {
+          "kernel": "KernelScalarCmp",
+          "count": 37,
+          "percent": 0.7
+        },
+        {
+          "kernel": "SelectKernel",
+          "count": 25,
+          "percent": 0.6
+        }
+      ]
+    },
+    {
+      "label": "wgpu-hace-short",
+      "kind": "wgpu-kernels",
+      "kernels": 2449,
+      "profiled_ms": 7562.1,
+      "shares": [
+        {
+          "kernel": "MatmulEntry",
+          "count": 373,
+          "percent": 48.5
+        },
+        {
+          "kernel": "ReduceKernel",
+          "count": 604,
+          "percent": 15.7
+        },
+        {
+          "kernel": "ElemwiseFuse",
+          "count": 377,
+          "percent": 8.6
+        },
+        {
+          "kernel": "KernelBinop",
+          "count": 376,
+          "percent": 7.8
+        },
+        {
+          "kernel": "DirectConv2dKernel",
+          "count": 66,
+          "percent": 7.0
+        },
+        {
+          "kernel": "CopyKernel",
+          "count": 167,
+          "percent": 3.3
+        },
+        {
+          "kernel": "CopyKernelPack",
+          "count": 127,
+          "percent": 2.4
+        },
+        {
+          "kernel": "UnaryFloat",
+          "count": 110,
+          "percent": 2.0
+        },
+        {
+          "kernel": "KernelScalarBinop",
+          "count": 102,
+          "percent": 1.9
+        },
+        {
+          "kernel": "ReduceKernelFused",
+          "count": 50,
+          "percent": 1.1
+        },
+        {
+          "kernel": "SliceAssignKernel",
+          "count": 50,
+          "percent": 0.9
+        },
+        {
+          "kernel": "SelectKernel",
+          "count": 29,
+          "percent": 0.5
+        }
+      ]
+    },
+    {
+      "label": "wgpu-mdx-kara2",
+      "kind": "wgpu-kernels",
+      "kernels": 243,
+      "profiled_ms": 1758.2,
+      "shares": [
+        {
+          "kernel": "MatmulEntry",
+          "count": 67,
+          "percent": 66.7
+        },
+        {
+          "kernel": "CopyKernelPack",
+          "count": 44,
+          "percent": 15.6
+        },
+        {
+          "kernel": "ElemwiseFuse",
+          "count": 55,
+          "percent": 7.3
+        },
+        {
+          "kernel": "SliceAssignKernel",
+          "count": 33,
+          "percent": 5.9
+        },
+        {
+          "kernel": "FullKernel",
+          "count": 33,
+          "percent": 2.9
+        },
+        {
+          "kernel": "Col2imKernel",
+          "count": 5,
+          "percent": 0.9
+        },
+        {
+          "kernel": "CopyKernel",
+          "count": 6,
+          "percent": 0.8
+        }
+      ]
+    },
+    {
+      "label": "wgpu-mdx-hq2",
+      "kind": "wgpu-kernels",
+      "kernels": 243,
+      "profiled_ms": 2317.8,
+      "shares": [
+        {
+          "kernel": "MatmulEntry",
+          "count": 67,
+          "percent": 65.4
+        },
+        {
+          "kernel": "CopyKernelPack",
+          "count": 44,
+          "percent": 16.6
+        },
+        {
+          "kernel": "ElemwiseFuse",
+          "count": 55,
+          "percent": 7.4
+        },
+        {
+          "kernel": "SliceAssignKernel",
+          "count": 33,
+          "percent": 6.7
+        },
+        {
+          "kernel": "FullKernel",
+          "count": 33,
+          "percent": 2.4
+        },
+        {
+          "kernel": "Col2imKernel",
+          "count": 5,
+          "percent": 0.8
+        },
+        {
+          "kernel": "CopyKernel",
+          "count": 6,
+          "percent": 0.7
+        }
+      ]
+    },
+    {
+      "label": "cpu-leap-short",
+      "kind": "cpu-samples",
+      "busy_samples": 47211,
+      "shares": [
+        {
+          "category": "gemm",
+          "percent": 33.3
+        },
+        {
+          "category": "copy/layout",
+          "percent": 30.6
+        },
+        {
+          "category": "elementwise",
+          "percent": 10.9
+        },
+        {
+          "category": "erf/gelu",
+          "percent": 7.4
+        },
+        {
+          "category": "allocator/kernel",
+          "percent": 7.2
+        },
+        {
+          "category": "exp/softmax/sigmoid/tanh",
+          "percent": 6.0
+        },
+        {
+          "category": "other",
+          "percent": 4.6
+        }
+      ]
+    },
+    {
+      "label": "cpu-deux-short",
+      "kind": "cpu-samples",
+      "busy_samples": 22454,
+      "shares": [
+        {
+          "category": "copy/layout",
+          "percent": 32.2
+        },
+        {
+          "category": "gemm",
+          "percent": 30.2
+        },
+        {
+          "category": "elementwise",
+          "percent": 11.7
+        },
+        {
+          "category": "other",
+          "percent": 6.8
+        },
+        {
+          "category": "exp/softmax/sigmoid/tanh",
+          "percent": 6.7
+        },
+        {
+          "category": "erf/gelu",
+          "percent": 6.2
+        },
+        {
+          "category": "allocator/kernel",
+          "percent": 6.1
+        }
+      ]
+    },
+    {
+      "label": "cpu-hace-short",
+      "kind": "cpu-samples",
+      "busy_samples": 33204,
+      "shares": [
+        {
+          "category": "gemm",
+          "percent": 33.9
+        },
+        {
+          "category": "copy/layout",
+          "percent": 29.8
+        },
+        {
+          "category": "elementwise",
+          "percent": 10.2
+        },
+        {
+          "category": "erf/gelu",
+          "percent": 7.5
+        },
+        {
+          "category": "allocator/kernel",
+          "percent": 6.6
+        },
+        {
+          "category": "exp/softmax/sigmoid/tanh",
+          "percent": 6.4
+        },
+        {
+          "category": "other",
+          "percent": 5.6
+        }
+      ]
+    },
+    {
+      "label": "cpu-mdx-kara2",
+      "kind": "cpu-samples",
+      "busy_samples": 11812,
+      "shares": [
+        {
+          "category": "gemm",
+          "percent": 61.1
+        },
+        {
+          "category": "other",
+          "percent": 16.8
+        },
+        {
+          "category": "copy/layout",
+          "percent": 11.3
+        },
+        {
+          "category": "allocator/kernel",
+          "percent": 6.1
+        },
+        {
+          "category": "conv im2col",
+          "percent": 3.0
+        },
+        {
+          "category": "elementwise",
+          "percent": 1.8
+        }
+      ]
+    }
+  ]
+}

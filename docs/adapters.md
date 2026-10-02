@@ -90,13 +90,20 @@ Add、Mul、Transpose。要求 opset=13、一个 F32 输入/输出、明确的 N
 网络仍完整计算所有有贡献的 chunk；没有静音近似、频带删减、量化或注意力替换。
 `--mdx-no-optimize` 可同时关闭这些优化，供相同二进制消融。
 
+WGPU 默认 `--conv-strategy auto` 把非分组、无空洞的 Conv 改写为滑窗 patch gather（`unfold`，
+通道×ky×kx 顺序对应 `[out,in,kh,kw]` 权重）加一次 autotune GEMM。乘加项与原卷积相同，
+只是累加顺序不同；CubeCL 在 RX 580 这类无 cooperative-matrix 的 GPU 上只提供直接卷积。
+CPU 保持 Flex 原生 im2col 卷积，实测比 patch gather 更快。`--conv-strategy gemm|backend`
+可强制任一路径，实际策略写入 run.json 的 `conv_strategy`。
+
 `--mdx-batch-size 2` 可把多个独立固定形状 chunk 放入一次 forward；默认 1，上限 4。
 这不改变每个块的 padding / context / OLA，但增加显存用量。最后不足整批时使用实际 batch。
 批量大小不是跨块隐藏状态缓存；经典 MDX 没有 attention 或 KV cache。
 
-可选 `cpu-opt` 开启 SIMD 卷积与 NdArray/Rayon 多线程；`simd` 可单独启用 SIMD。
-CPU 基准在进程启动前设置 `RAYON_NUM_THREADS=1` 或 `4`，并固定
-`VECLIB_MAXIMUM_THREADS=1`，防止 BLAS 和卷积并发过度。环境与 build_features 保存在报告中。
+`--backend cpu` 使用 Burn Flex（SIMD、Rayon gemm 与 im2col 卷积）；旧 NdArray 通过
+`--backend ndarray` 保留，可选 `cpu-opt` 开启其 SIMD 卷积与多线程。上一轮 NdArray CPU 基准在进程启动前
+设置 `RAYON_NUM_THREADS=1` 或 `4` 并固定 `VECLIB_MAXIMUM_THREADS=1`；本轮 Flex 基准使用默认线程。
+环境与 build_features 保存在报告中。
 
 所有任务仍使用完整主机 PCM 和 OLA，受 `--max-seconds` 样本预算保护；尚未实现磁盘流式 OLA。
 设备工作区释放句柄不等于实测显存峰值，本文不把估计内存写作 profiler 结果。

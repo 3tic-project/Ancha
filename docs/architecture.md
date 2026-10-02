@@ -35,6 +35,22 @@ Mel gather 保留重复频点，输出 mask 用 scatter-add 聚合，再除以�
 HyperACE v2 使用独立 SegmModel adapter，把空间预测与 per-band MLP mask 相加；完整参数必须被消费。
 它不会被当作普通 BS 模型，固定 source/DSP 与后续验收见 [新增适配](adapters.md)。
 
+### 推理期等价变换
+
+加载时只做代数等价的折叠，checkpoint 的严格消费检查不变：
+
+- RMSNorm 的 `sqrt(dim)·gamma` 只喂给其后的投影（band split、q/k/v/gate、FFN 输入），
+  折进这些投影的输入行；运行期只保留 `x / max(||x||, 1e-12)`。final norm 和 Mel 轴末 norm
+  另有其他读者，保留独立缩放。
+- `to_qkv` 拆成 q/k/v 三个连续输出；1/sqrt(head_dim) 乘进 query 的 RoPE cos/sin 表
+  （RoPE 线性），head_dim=64 时为精确的 2 的幂。RoPE 用 `x·cos + swap_pairs(x)·sin±`，
+  成对符号预置在 sin 表中，每次 forward 每轴只构建一次表。
+- 相同输入宽度的频带合成一组，band split 与 mask 末层按组做批量 GEMM（feature-major，
+  bias 形状 `[n,out,1]`）；Mel 的非相邻同宽频带通过一次 gather 恢复原频带顺序。
+- 网络输出复数 mask `[stems, rows, re/im, frames]`，复数乘回原频谱在主机 iSTFT 前完成。
+
+这些变换只改变浮点舍入顺序，真实权重的 PyTorch 波形比对见 [速度优化记录](speed-optimization.md)。
+
 ## DSP、分块与输出
 
 输入限制为 WAV / FLAC / MP3，mono 复制为 stereo；多于两个声道明确报错。
@@ -63,12 +79,21 @@ GPU 只驻留权重、当前 chunk/batch 和 forward 临时张量；不驻留整
 schema 1 的分离不是滚动磁盘流式实现。64 位平台默认每通道 158760000 samples；
 三个双声道 PCM 缓冲本身可接近 3.8 GB，另需 chunk、权重、临时 buffer 和双输出工作内存。
 
-时间 attention 的每次 scores 张量上界为 `min(group_tile,bands)*heads*min(query_tile,frames)*frames*4`。
-query 分块只改变浮点调度，softmax 始终覆盖全长 K/V，未修改双向注意力上下文。
-`--max-score-mib` 是单次 scores 张量限额，不是总显存上限；Burn 队列、QKV 和 concat 也需要内存。
+attention 的每次 scores 张量为 `group_tile*heads*query_tile*tokens*4` 字节；时间轴
+groups=bands、tokens=frames，频率轴相反。未给 `--query-tile` / `--group-tile` 时，
+按 `--max-score-mib`（默认 512）选择不超过预算的最大精确分块：先保持整段 query，再尽量合并组。
+分块只改变浮点调度，softmax 始终覆盖全长 K/V，未修改双向注意力上下文。
+CPU 多 worker 并发时预算平分给各 worker，并发 scores 总量仍不超过该限额。
+`--max-score-mib` 不是总显存上限；Burn 队列、QKV 和 concat 也需要内存。
 没有量化、近似窗口或不合法的深层跨 chunk KV 缓存。
 
-模型计时包含 CPU→GPU 传输与最终 readback 同步，加载计时另列。
+CPU 默认使用 Burn Flex 后端（gemm 矩阵乘、im2col 卷积、零拷贝 strided view）；
+`--backend ndarray` 保留旧 NdArray 供消融。Flex 的逐元素算子是单线程，因此 RoFormer
+每个轴向 Transformer 把相互独立的序列组（时间轴的频带、频率轴的帧）切给 `--host-threads`
+个主机线程，默认等于逻辑核数；每组算术完全相同，WGPU 固定为 1。
+
+模型计时包含 CPU→GPU 传输与最终 readback 同步，加载计时另列；`model_call_seconds`
+逐次记录，第一项还包含 WGPU 内核编译和 autotune。
 RTF=`包含加载与WAV写出的总墙钟时间 / 片段音频时间`，越小越快。
 批量投影是本机更快的默认布局；独立行合并成单次大 GEMM 的实验路径保持数值一致，
 但在 RX 580 上实测变慢，只有显式 `--flatten-linear` 才启用。
@@ -88,6 +113,9 @@ Transformer 层、mask head 边界检查，已经提交的 GPU kernel 可能需�
 trim、padding、OLA、compensate 和任务标签；不滥用 schema1 RoFormer 的固定 FFT2048 配置。
 基于 SHA256 的注册避免以文件名猜测模型。参数与加速边界见 [适配文档](adapters.md)。
 
-可选 `cpu-opt` 开启 Burn SIMD 与 NdArray 多线程；`simd` 可单独消融，macOS `accelerate` 提供 BLAS。
-CPU 线程由进程启动前的 RAYON_NUM_THREADS / VECLIB_MAXIMUM_THREADS 等控制，报告保存设置；
-这些环境值不是对系统实际并发线程总数的采样。WGPU 保留原生 GPU 卷积、固定 FP32，batch 默认1。
+CPU 默认 Flex 后端自带 SIMD 与 Rayon 并行 gemm/im2col，线程数可用进程启动前的
+`RAYON_NUM_THREADS` 控制。可选 `cpu-opt` 只影响 `--backend ndarray`（Burn SIMD 与 NdArray 多线程），
+macOS `accelerate` 为 NdArray 提供 BLAS；报告保存这些环境设置，但它们不是对实际并发线程的采样。
+WGPU 启用 Burn autotune，固定 FP32，batch 默认 1。CubeCL 在没有 cooperative-matrix 的 GPU
+（如 RX 580）上只能用直接卷积，MDX 因此默认把非分组卷积改写为 patch gather + 一次 GEMM；
+CPU 仍用 Flex 原生卷积。`--conv-strategy gemm|backend` 可做同二进制消融。

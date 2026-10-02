@@ -1,0 +1,433 @@
+{
+  "scope": "optimized binary vs pinned PyTorch (RoFormer, single 132300-sample chunk) and UVR + ONNX Runtime (MDX); threshold max_abs < 1e-3 and waveform SNR > 50 dB; implementation consistency, not SDR",
+  "rust_binary_sha256": "ad4e2402a7497778e575dd5c70a54dc9ff1db2b7798565cebf5e8b12d98cf376",
+  "passed": 14,
+  "total": 14,
+  "entries": [
+    {
+      "run": "UVR-MDX-NET-Inst_HQ_2-cpu",
+      "status": "passed",
+      "rust_backend": "cpu-flex",
+      "rust_profile": "uvr-single-pass",
+      "model_id": "mdx-inst-hq-2",
+      "audio_seconds": 3.0,
+      "rust_model_forwards": 1,
+      "host_threads": null,
+      "conv_strategy": "backend",
+      "tiles": null,
+      "reference": {
+        "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+        "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+        "torch": "2.2.2",
+        "ort": "1.20.1",
+        "ort_threads": 4
+      },
+      "comparisons": [
+        {
+          "stem": "instrumental",
+          "max_abs": 8.940696716308594e-07,
+          "waveform_snr_db": 123.29690793660754,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "UVR-MDX-NET-Inst_HQ_2-wgpu",
+      "status": "passed",
+      "rust_backend": "wgpu",
+      "rust_profile": "uvr-single-pass",
+      "model_id": "mdx-inst-hq-2",
+      "audio_seconds": 3.0,
+      "rust_model_forwards": 1,
+      "host_threads": null,
+      "conv_strategy": "gemm",
+      "tiles": null,
+      "reference": {
+        "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+        "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+        "torch": "2.2.2",
+        "ort": "1.20.1",
+        "ort_threads": 4
+      },
+      "comparisons": [
+        {
+          "stem": "instrumental",
+          "max_abs": 1.0728836059570312e-06,
+          "waveform_snr_db": 122.28186884429766,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "UVR_MDXNET_9482-wgpu",
+      "status": "passed",
+      "rust_backend": "wgpu",
+      "rust_profile": "uvr-single-pass",
+      "model_id": "mdx-9482",
+      "audio_seconds": 3.0,
+      "rust_model_forwards": 1,
+      "host_threads": null,
+      "conv_strategy": "gemm",
+      "tiles": null,
+      "reference": {
+        "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+        "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+        "torch": "2.2.2",
+        "ort": "1.20.1",
+        "ort_threads": 4
+      },
+      "comparisons": [
+        {
+          "stem": "all_vocals",
+          "max_abs": 5.364418029785156e-07,
+          "waveform_snr_db": 126.14052269960129,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "UVR_MDXNET_KARA-wgpu",
+      "status": "passed",
+      "rust_backend": "wgpu",
+      "rust_profile": "uvr-single-pass",
+      "model_id": "mdx-kara",
+      "audio_seconds": 3.0,
+      "rust_model_forwards": 1,
+      "host_threads": null,
+      "conv_strategy": "gemm",
+      "tiles": null,
+      "reference": {
+        "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+        "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+        "torch": "2.2.2",
+        "ort": "1.20.1",
+        "ort_threads": 4
+      },
+      "comparisons": [
+        {
+          "stem": "lead_vocals",
+          "max_abs": 3.5762786865234375e-07,
+          "waveform_snr_db": 129.16713975825581,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "UVR_MDXNET_KARA_2-cpu",
+      "status": "passed",
+      "rust_backend": "cpu-flex",
+      "rust_profile": "uvr-single-pass",
+      "model_id": "mdx-kara-2",
+      "audio_seconds": 3.0,
+      "rust_model_forwards": 1,
+      "host_threads": null,
+      "conv_strategy": "backend",
+      "tiles": null,
+      "reference": {
+        "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+        "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+        "torch": "2.2.2",
+        "ort": "1.20.1",
+        "ort_threads": 4
+      },
+      "comparisons": [
+        {
+          "stem": "karaoke_mix",
+          "max_abs": 6.556510925292969e-07,
+          "waveform_snr_db": 126.72512291665217,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "UVR_MDXNET_KARA_2-wgpu",
+      "status": "passed",
+      "rust_backend": "wgpu",
+      "rust_profile": "uvr-single-pass",
+      "model_id": "mdx-kara-2",
+      "audio_seconds": 3.0,
+      "rust_model_forwards": 1,
+      "host_threads": null,
+      "conv_strategy": "gemm",
+      "tiles": null,
+      "reference": {
+        "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+        "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+        "torch": "2.2.2",
+        "ort": "1.20.1",
+        "ort_threads": 4
+      },
+      "comparisons": [
+        {
+          "stem": "karaoke_mix",
+          "max_abs": 5.960464477539062e-07,
+          "waveform_snr_db": 127.13091687712227,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "deux-cpu",
+      "status": "passed",
+      "rust_backend": "cpu-flex",
+      "rust_profile": "custom-context",
+      "model_id": "deux",
+      "audio_seconds": 3.0,
+      "rust_model_forwards": null,
+      "host_threads": 12,
+      "conv_strategy": null,
+      "tiles": [
+        5,
+        301,
+        26,
+        60
+      ],
+      "reference": {
+        "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+        "source_revision": "MSST/84b1eac0887756b4f1a9d7a1ff49105939749ed2",
+        "torch": "2.2.2",
+        "threads": 6,
+        "platform": "macOS-15.7.7-x86_64-i386-64bit"
+      },
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 1.6540288925170898e-06,
+          "waveform_snr_db": 124.57486244567981,
+          "status": "passed"
+        },
+        {
+          "stem": "instrumental",
+          "max_abs": 1.6838312149047852e-06,
+          "waveform_snr_db": 123.49035862386587,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "deux-wgpu",
+      "status": "passed",
+      "rust_backend": "wgpu",
+      "rust_profile": "custom-context",
+      "model_id": "deux",
+      "audio_seconds": 3.0,
+      "rust_model_forwards": null,
+      "host_threads": 1,
+      "conv_strategy": null,
+      "tiles": [
+        60,
+        301,
+        301,
+        60
+      ],
+      "reference": {
+        "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+        "source_revision": "MSST/84b1eac0887756b4f1a9d7a1ff49105939749ed2",
+        "torch": "2.2.2",
+        "threads": 6,
+        "platform": "macOS-15.7.7-x86_64-i386-64bit"
+      },
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 1.646578311920166e-06,
+          "waveform_snr_db": 123.88291036446384,
+          "status": "passed"
+        },
+        {
+          "stem": "instrumental",
+          "max_abs": 1.5944242477416992e-06,
+          "waveform_snr_db": 121.51610782628863,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "hace-inst-wgpu",
+      "status": "passed",
+      "rust_backend": "wgpu",
+      "rust_profile": "custom-context",
+      "model_id": "hyperace-v2-inst",
+      "audio_seconds": 3.0,
+      "rust_model_forwards": null,
+      "host_threads": 1,
+      "conv_strategy": null,
+      "tiles": [
+        62,
+        259,
+        259,
+        62
+      ],
+      "reference": {
+        "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+        "source_revision": "HyperACE/5b1f8283125d5e4a3614d0e3635a636e09c84059;bs_roformer.py=48571e20d70ea8f245cffc6afbfa279f62042e7ba16fbaa3fe43dd2cbc25e1db",
+        "torch": "2.2.2",
+        "threads": 6,
+        "platform": "macOS-15.7.7-x86_64-i386-64bit"
+      },
+      "comparisons": [
+        {
+          "stem": "instrumental",
+          "max_abs": 1.074373722076416e-05,
+          "waveform_snr_db": 115.83077771162783,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "hace-voc-cpu",
+      "status": "passed",
+      "rust_backend": "cpu-flex",
+      "rust_profile": "custom-context",
+      "model_id": "hyperace-v2-voc",
+      "audio_seconds": 3.0,
+      "rust_model_forwards": null,
+      "host_threads": 12,
+      "conv_strategy": null,
+      "tiles": [
+        6,
+        259,
+        22,
+        62
+      ],
+      "reference": {
+        "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+        "source_revision": "HyperACE/5b1f8283125d5e4a3614d0e3635a636e09c84059;bs_roformer.py=48571e20d70ea8f245cffc6afbfa279f62042e7ba16fbaa3fe43dd2cbc25e1db",
+        "torch": "2.2.2",
+        "threads": 6,
+        "platform": "macOS-15.7.7-x86_64-i386-64bit"
+      },
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 2.205371856689453e-06,
+          "waveform_snr_db": 123.05020566173866,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "hace-voc-wgpu",
+      "status": "passed",
+      "rust_backend": "wgpu",
+      "rust_profile": "custom-context",
+      "model_id": "hyperace-v2-voc",
+      "audio_seconds": 3.0,
+      "rust_model_forwards": null,
+      "host_threads": 1,
+      "conv_strategy": null,
+      "tiles": [
+        62,
+        259,
+        259,
+        62
+      ],
+      "reference": {
+        "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+        "source_revision": "HyperACE/5b1f8283125d5e4a3614d0e3635a636e09c84059;bs_roformer.py=48571e20d70ea8f245cffc6afbfa279f62042e7ba16fbaa3fe43dd2cbc25e1db",
+        "torch": "2.2.2",
+        "threads": 6,
+        "platform": "macOS-15.7.7-x86_64-i386-64bit"
+      },
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 8.821487426757812e-06,
+          "waveform_snr_db": 118.71119571783028,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "kara2-wgpu-30s",
+      "status": "passed",
+      "rust_backend": "wgpu",
+      "rust_profile": "uvr-single-pass",
+      "model_id": "mdx-kara-2",
+      "audio_seconds": 30.0,
+      "rust_model_forwards": 6,
+      "host_threads": null,
+      "conv_strategy": "gemm",
+      "tiles": null,
+      "reference": {
+        "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+        "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+        "torch": "2.2.2",
+        "ort": "1.20.1",
+        "ort_threads": 4
+      },
+      "comparisons": [
+        {
+          "stem": "karaoke_mix",
+          "max_abs": 8.344650268554688e-07,
+          "waveform_snr_db": 127.66622357923953,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "leap-cpu",
+      "status": "passed",
+      "rust_backend": "cpu-flex",
+      "rust_profile": "custom-context",
+      "model_id": "leap-xe-voc",
+      "audio_seconds": 3.0,
+      "rust_model_forwards": null,
+      "host_threads": 12,
+      "conv_strategy": null,
+      "tiles": [
+        8,
+        259,
+        22,
+        90
+      ],
+      "reference": {
+        "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+        "source_revision": "MSST/84b1eac0887756b4f1a9d7a1ff49105939749ed2",
+        "torch": "2.2.2",
+        "threads": 6,
+        "platform": "macOS-15.7.7-x86_64-i386-64bit"
+      },
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 2.16066837310791e-06,
+          "waveform_snr_db": 116.41847359238918,
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "run": "leap-wgpu",
+      "status": "passed",
+      "rust_backend": "wgpu",
+      "rust_profile": "custom-context",
+      "model_id": "leap-xe-voc",
+      "audio_seconds": 3.0,
+      "rust_model_forwards": null,
+      "host_threads": 1,
+      "conv_strategy": null,
+      "tiles": [
+        90,
+        259,
+        259,
+        90
+      ],
+      "reference": {
+        "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+        "source_revision": "MSST/84b1eac0887756b4f1a9d7a1ff49105939749ed2",
+        "torch": "2.2.2",
+        "threads": 6,
+        "platform": "macOS-15.7.7-x86_64-i386-64bit"
+      },
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 2.592802047729492e-06,
+          "waveform_snr_db": 114.98649322685418,
+          "status": "passed"
+        }
+      ]
+    }
+  ]
+}

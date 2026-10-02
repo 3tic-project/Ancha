@@ -3,6 +3,7 @@
 2026-10-02，Intel i5-12400（6核/12线程）、64GB RAM、RX580 8GB，macOS15.7.7 x86_64。
 Rust1.92.0、Burn0.21.0、CubeCL0.10.0、onnx-rs0.1.2。使用本地歌曲第30秒起的同一3秒/30秒
 float32 WAV，44100Hz stereo；原始音频、权重、完整日志和产物均在 NO_TRACK。
+本文为适配轮次的记录；之后的 CPU/WGPU 速度审计与当前默认见 [速度优化记录](speed-optimization.md)。
 
 ## 跑通与实现一致性
 

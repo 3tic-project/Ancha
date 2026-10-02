@@ -1,7 +1,8 @@
 # 本机测试与性能记录
 
 本文保留首次 Leap / Deux 交付的测量。后续 HyperACE / MDX 的新功能、28 项测试与
-CPU/GPU 优化结果见 [新增适配性能记录](adapters-performance.md)。
+CPU/GPU 优化结果见 [新增适配性能记录](adapters-performance.md)，当前默认执行路径的速度见
+[速度优化记录](speed-optimization.md)。
 
 2026-10-02，本机 Intel i5-12400（6 核 / 12 线程）、64 GB RAM、AMD Radeon RX 580 8 GB，
 macOS 15.7.7 / x86_64，Rust 1.92.0、Burn 0.21.0、CubeCL 0.10.0。
