@@ -68,6 +68,12 @@ pub struct RunReport {
     /// HyperACE SegmModel convolution path (`gemm` / `backend`); absent for other families.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub conv_strategy: Option<String>,
+    /// `fused` (single-pass kernel, no score tensors) or `tiled` (materialized score tiles).
+    #[serde(default)]
+    pub attention_kernel: String,
+    /// Transformer projections: `custom` (hand-written GEMM) or `burn`.
+    #[serde(default)]
+    pub gemm_kernel: String,
     pub build_features: Vec<String>,
     #[serde(default)]
     pub cpu_thread_environment: std::collections::BTreeMap<String, String>,

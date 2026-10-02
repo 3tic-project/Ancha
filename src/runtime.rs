@@ -64,11 +64,19 @@ pub fn separate<B: Backend>(
     let c = &manifest.config;
     let frames = c.chunk_samples / c.hop + 1;
     let attention = options.attention;
+    let fused = attention.fused_attention
+        && c.head_dim == ancha_models::fused::ATTENTION_HEAD_DIM
+        && ancha_models::fused::available::<B>();
     let bands = c.bands.len();
     let (group, query, score_bytes) = attention.worker_tiles(bands, frames, c.heads);
     let time_tiles = (group, query);
     let (group, query, frequency_score_bytes) = attention.worker_tiles(frames, bands, c.heads);
     let frequency_tiles = (group, query);
+    let (score_bytes, frequency_score_bytes) = if fused {
+        (0, 0)
+    } else {
+        (score_bytes, frequency_score_bytes)
+    };
     let concurrent = (score_bytes * attention.per_worker(bands).0)
         .max(frequency_score_bytes * attention.per_worker(frames).0);
     ensure!(
@@ -311,6 +319,13 @@ pub fn separate<B: Backend>(
             }
             .into()
         }),
+        attention_kernel: if fused { "fused" } else { "tiled" }.into(),
+        gemm_kernel: if attention.custom_gemm && ancha_models::fused::available::<B>() {
+            "custom"
+        } else {
+            "burn"
+        }
+        .into(),
         linear_layout: if options.attention.batched_linear {
             "batched"
         } else {

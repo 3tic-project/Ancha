@@ -110,13 +110,16 @@ fn synthetic_model_runs_full_pipeline_both_families_and_preserves_native_stems()
                 .fold(0f32, f32::max);
             assert!(max < 1e-6, "projection layout changed {name}: {max}");
         }
-        // Flex CPU, concurrent group workers and automatic tiles change only the schedule.
+        // Flex CPU, concurrent group workers and automatic tiles change only the schedule;
+        // the GPU kernel flags fall back to the Burn path on CPU.
         let flex_options = SeparateOptions {
             output: temp.path().join("flex"),
             attention: AttentionPlan {
                 query_tile: None,
                 group_tile: None,
                 host_threads: 3,
+                fused_attention: true,
+                custom_gemm: true,
                 ..options.attention
             },
             ..options.clone()
@@ -131,6 +134,10 @@ fn synthetic_model_runs_full_pipeline_both_families_and_preserves_native_stems()
         .unwrap();
         assert_eq!(flex.host_threads, 3);
         assert_eq!(flex.attention_tiling, "auto");
+        assert_eq!(
+            (flex.attention_kernel.as_str(), flex.gemm_kernel.as_str()),
+            ("tiled", "burn")
+        );
         for name in ["vocals", "instrumental"] {
             let reference = decode(
                 &output.join(format!("{name}.wav")),

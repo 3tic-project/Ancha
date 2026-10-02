@@ -283,6 +283,8 @@ fn record(
             json!({"chunk_samples": config["chunk_samples"], "overlap": config["overlap"]})
         },
         "settings": {
+            "attention_kernel": report.get("attention_kernel"),
+            "gemm_kernel": report.get("gemm_kernel"),
             "linear_layout": report.get("linear_layout"),
             "conv_strategy": report.get("conv_strategy"),
             "host_threads": report.get("host_threads"),

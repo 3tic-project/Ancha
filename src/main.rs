@@ -123,6 +123,26 @@ struct SeparateArgs {
     /// HyperACE SegmModel on CUDA, Burn conv2d otherwise.
     #[arg(long, value_enum, default_value = "auto")]
     conv_strategy: ConvStrategy,
+    /// RoFormer attention: `auto` uses the single-pass fused kernel on CUDA and tiled
+    /// materialized scores elsewhere; `fused` requires a GPU backend with the kernel.
+    #[arg(long, value_enum, default_value = "auto")]
+    attention_kernel: AttentionKernel,
+    /// RoFormer projections: `auto` uses the hand-written GEMM on CUDA and Burn matmul
+    /// elsewhere; `custom` requires a GPU backend.
+    #[arg(long, value_enum, default_value = "auto")]
+    gemm_kernel: GemmKernel,
+}
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum GemmKernel {
+    Auto,
+    Custom,
+    Burn,
+}
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum AttentionKernel {
+    Auto,
+    Fused,
+    Tiled,
 }
 #[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum ConvStrategy {
@@ -232,6 +252,28 @@ fn run() -> Result<()> {
                 ConvStrategy::Auto => {}
                 ConvStrategy::Gemm => attention.conv_gemm = true,
                 ConvStrategy::Backend => attention.conv_gemm = false,
+            }
+            match args.attention_kernel {
+                AttentionKernel::Auto => {}
+                AttentionKernel::Fused => {
+                    ensure!(
+                        kind.is_gpu(),
+                        "--attention-kernel fused needs a GPU backend (wgpu or cuda)"
+                    );
+                    attention.fused_attention = true;
+                }
+                AttentionKernel::Tiled => attention.fused_attention = false,
+            }
+            match args.gemm_kernel {
+                GemmKernel::Auto => {}
+                GemmKernel::Custom => {
+                    ensure!(
+                        kind.is_gpu(),
+                        "--gemm-kernel custom needs a GPU backend (wgpu or cuda)"
+                    );
+                    attention.custom_gemm = true;
+                }
+                GemmKernel::Burn => attention.custom_gemm = false,
             }
             let options = SeparateOptions {
                 input: args.input,
@@ -367,6 +409,8 @@ fn run_mdx(args: SeparateArgs, cancelled: &AtomicBool) -> Result<()> {
             && !args.flatten_linear
             && args.linear_layout == LinearLayout::Auto
             && args.host_threads.is_none()
+            && args.attention_kernel == AttentionKernel::Auto
+            && args.gemm_kernel == GemmKernel::Auto
             && args.query_tile.is_none()
             && args.group_tile.is_none(),
         "RoFormer context/attention flags do not apply to MDX; use --mdx-overlap"

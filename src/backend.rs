@@ -47,7 +47,8 @@ impl BackendKind {
         }
     }
     /// RoFormer defaults: automatic tiles within 512 MiB of scores; all host threads on CPU,
-    /// one on GPUs; on CUDA folded projections and GEMM convolution for HyperACE.
+    /// one on GPUs; on CUDA folded projections, GEMM convolution for HyperACE and the
+    /// hand-written attention and projection kernels.
     pub fn attention_plan(self) -> AttentionPlan {
         AttentionPlan {
             query_tile: None,
@@ -60,6 +61,8 @@ impl BackendKind {
                 std::thread::available_parallelism().map_or(1, |n| n.get())
             },
             conv_gemm: self == Self::Cuda,
+            fused_attention: self == Self::Cuda,
+            custom_gemm: self == Self::Cuda,
         }
     }
     /// MDX: patch-gather GEMM convolution on GPUs, Burn conv2d (im2col) on CPU.

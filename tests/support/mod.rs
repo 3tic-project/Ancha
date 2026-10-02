@@ -10,6 +10,21 @@ use std::{collections::BTreeMap, path::Path};
 
 /// Original synthetic weights, created in memory: no external model/audio in CI.
 pub fn tiny_package(directory: &Path, family: Family) -> Manifest {
+    package(directory, family, |_| {})
+}
+
+/// [`tiny_package`] wide enough for the GPU kernels: 64-wide heads and 128-multiple projections.
+#[allow(dead_code)]
+pub fn kernel_package(directory: &Path, family: Family) -> Manifest {
+    package(directory, family, |c| {
+        c.dim = 128;
+        c.heads = 2;
+        c.head_dim = 64;
+        c.ff_mult = 4;
+    })
+}
+
+fn package(directory: &Path, family: Family, adjust: impl FnOnce(&mut ModelConfig)) -> Manifest {
     let mut c = ModelConfig::leap_xe(false);
     c.family = family;
     c.dim = 4;
@@ -40,6 +55,9 @@ pub fn tiny_package(directory: &Path, family: Family) -> Manifest {
     if family == Family::MelBandRoformer {
         c.stems = vec!["vocals".into(), "instrumental".into()];
     }
+    adjust(&mut c);
+    let (dim, inner) = (c.dim, c.heads * c.head_dim);
+    let (hidden, mask) = (c.dim * c.ff_mult, c.dim * c.mask_expansion);
     let mut tensors = BTreeMap::<String, (Vec<usize>, Vec<u8>)>::new();
     let mut insert = |key: String, shape: Vec<usize>| {
         let values: Vec<f32> = (0..shape.iter().product())
@@ -62,42 +80,51 @@ pub fn tiny_package(directory: &Path, family: Family) -> Manifest {
         let width = bins.len() * 4;
         let p = format!("band_split.to_features.{band}");
         insert(format!("{p}.0.gamma"), vec![width]);
-        insert(format!("{p}.1.weight"), vec![4, width]);
-        insert(format!("{p}.1.bias"), vec![4]);
+        insert(format!("{p}.1.weight"), vec![dim, width]);
+        insert(format!("{p}.1.bias"), vec![dim]);
         for stem in 0..c.stems.len() {
             let p = format!("mask_estimators.{stem}.to_freqs.{band}.0");
-            insert(format!("{p}.0.weight"), vec![4, 4]);
-            insert(format!("{p}.0.bias"), vec![4]);
+            insert(format!("{p}.0.weight"), vec![mask, dim]);
+            insert(format!("{p}.0.bias"), vec![mask]);
             let last = if family == Family::MelBandRoformer {
-                insert(format!("{p}.2.weight"), vec![4, 4]);
-                insert(format!("{p}.2.bias"), vec![4]);
+                insert(format!("{p}.2.weight"), vec![mask, mask]);
+                insert(format!("{p}.2.bias"), vec![mask]);
                 4
             } else {
                 2
             };
-            insert(format!("{p}.{last}.weight"), vec![width * 2, 4]);
+            insert(format!("{p}.{last}.weight"), vec![width * 2, mask]);
             insert(format!("{p}.{last}.bias"), vec![width * 2]);
         }
     }
     for axis in 0..2 {
         let p = format!("layers.0.{axis}");
-        insert(format!("{p}.layers.0.0.norm.gamma"), vec![4]);
-        insert(format!("{p}.layers.0.0.to_qkv.weight"), vec![12, 4]);
-        insert(format!("{p}.layers.0.0.to_gates.weight"), vec![1, 4]);
-        insert(format!("{p}.layers.0.0.to_gates.bias"), vec![1]);
-        insert(format!("{p}.layers.0.0.to_out.0.weight"), vec![4, 4]);
-        insert(format!("{p}.layers.0.0.rotary_embed.freqs"), vec![2]);
-        insert(format!("{p}.layers.0.1.net.0.gamma"), vec![4]);
-        for j in [1, 4] {
-            insert(format!("{p}.layers.0.1.net.{j}.weight"), vec![4, 4]);
-            insert(format!("{p}.layers.0.1.net.{j}.bias"), vec![4]);
-        }
+        insert(format!("{p}.layers.0.0.norm.gamma"), vec![dim]);
+        insert(
+            format!("{p}.layers.0.0.to_qkv.weight"),
+            vec![3 * inner, dim],
+        );
+        insert(
+            format!("{p}.layers.0.0.to_gates.weight"),
+            vec![c.heads, dim],
+        );
+        insert(format!("{p}.layers.0.0.to_gates.bias"), vec![c.heads]);
+        insert(format!("{p}.layers.0.0.to_out.0.weight"), vec![dim, inner]);
+        insert(
+            format!("{p}.layers.0.0.rotary_embed.freqs"),
+            vec![c.head_dim / 2],
+        );
+        insert(format!("{p}.layers.0.1.net.0.gamma"), vec![dim]);
+        insert(format!("{p}.layers.0.1.net.1.weight"), vec![hidden, dim]);
+        insert(format!("{p}.layers.0.1.net.1.bias"), vec![hidden]);
+        insert(format!("{p}.layers.0.1.net.4.weight"), vec![dim, hidden]);
+        insert(format!("{p}.layers.0.1.net.4.bias"), vec![dim]);
         if family == Family::MelBandRoformer {
-            insert(format!("{p}.norm.gamma"), vec![4]);
+            insert(format!("{p}.norm.gamma"), vec![dim]);
         }
     }
     if family == Family::BsRoformer {
-        insert("final_norm.gamma".into(), vec![4]);
+        insert("final_norm.gamma".into(), vec![dim]);
     }
     let views: BTreeMap<_, _> = tensors
         .iter()
