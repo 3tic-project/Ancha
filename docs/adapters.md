@@ -9,7 +9,7 @@
 macOS 本机完整构建：
 
 ```bash
-cargo build --release --locked --features convert,wgpu,accelerate,onnx,cpu-opt
+cargo build --release --locked --features convert,accelerate
 bash scripts/download-models.sh
 
 target/release/ancha convert NO_TRACK/models/hyperace-v2-voc.ckpt \

@@ -8,7 +8,8 @@ chunk → STFT → RoFormer → iSTFT → OLA → residual → WAV / run.json。
 | `crates/ancha-audio` | Symphonia 解码、指定片段、Rubato sinc 重采样、RealFFT、分块和 OLA |
 | `crates/ancha-models` | 版本化 manifest、严格权重加载、BS/Mel/HyperACE forward、经典 MDX ONNX 图、转换工具 |
 | `crates/ancha-kernels` | 原实验包的标量数学参考、online softmax、融合与缓存准入测试 |
-| `src` | 后端选择、资源限额、任务取消、CLI、运行报告、性能消融、CUDA 预检与内核缓存、GPU 故障检查 |
+| `src` | 运行时后端选择与各后端默认值（`ancha::backend`）、资源限额、任务取消、CLI、运行报告、性能消融、CUDA 预检与内核缓存、GPU 故障检查 |
+| `examples` | SDK 调用示例：单模型分离；全部模型整曲分离并汇总性能 |
 | `tests` | 运行时生成的原创微型权重与音频，覆盖完整分离路径 |
 | `scripts` | 开发期下载／Python 独立 parity；运行时不调用这些脚本 |
 | `configs` | 不含权重的模型配置，Mel 索引在开发期导出后固定 |

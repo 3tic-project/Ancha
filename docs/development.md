@@ -2,7 +2,8 @@
 
 工具链固定为 Rust 1.92.0 / Burn 0.21.0，提交 Cargo.lock。默认 CPU 后端为纯 Rust 的 Burn Flex；
 `--backend ndarray` 保留旧 NdArray，`cpu-opt` 与 macOS `accelerate`（系统 BLAS）只作用于它。
-`wgpu` 为可选 GPU feature，启用 Burn fusion 与 autotune。`cuda` 同样启用 fusion 与 autotune，
+默认 feature 为 `wgpu`、`onnx`、`cpu-opt`；`wgpu` 启用 Burn fusion 与 autotune。`cuda` 同样启用 fusion 与 autotune，
+只需在默认之上追加，与 CPU / WGPU 共存于同一二进制，运行时用 `--backend` 选择；它
 经 CubeCL 用 NVRTC 在运行时编译内核，并动态加载 libcuda / libnvrtc；构建时 cudarc 从 PATH 中的
 `nvcc --version` 确定绑定的 CUDA 版本，没有 nvcc 时用 `CUDARC_CUDA_VERSION`（如 12.2 写 `12020`）指定，
 否则会回落到最新版本绑定，可能与旧驱动不匹配。`convert` 只增加 checkpoint 读取工具，
@@ -12,10 +13,10 @@
 cargo fmt --all --check
 cargo clippy --workspace --all-targets --features convert --locked -- -D warnings
 cargo test --workspace --features convert --locked
-cargo build --release --features convert,wgpu,accelerate,onnx,cpu-opt --locked # macOS
-PATH=/usr/local/cuda/bin:$PATH cargo build --release --features convert,wgpu,cuda,onnx,cpu-opt --locked # Linux + NVIDIA
+cargo build --release --features convert,accelerate --locked # macOS
+PATH=/usr/local/cuda/bin:$PATH cargo build --release --features cuda --locked # Linux + NVIDIA
 # 仅在有 NVIDIA GPU 的机器上：硬件契约测试（合成模型 CUDA vs Flex、GEMM 卷积、显存分配失败可见）。
-cargo test --release --locked --features convert,cuda,onnx,cpu-opt --test cuda_contracts --test cuda_device_failure
+cargo test --release --locked --features cuda --test cuda_contracts --test cuda_device_failure
 ```
 
 CI 使用原创合成音频与微型权重，不下载真实权重或商业歌曲。GPU 编译检查不等于 GPU 执行测试；
@@ -91,12 +92,12 @@ target/release/ancha convert NO_TRACK/models/becruily_deux.ckpt \
 完整功能和 CPU 优化构建：
 
 ```bash
-cargo build --release --locked --features convert,wgpu,accelerate,onnx,cpu-opt
-cargo clippy --workspace --all-targets --locked --features convert,wgpu,accelerate,onnx,cpu-opt -- -D warnings
-cargo test --workspace --locked --features convert,wgpu,accelerate,onnx,cpu-opt
+cargo build --release --locked --features convert,accelerate
+cargo clippy --workspace --all-targets --locked --features convert,accelerate -- -D warnings
+cargo test --workspace --locked --features convert,accelerate
 ```
 
-跨平台 CI 使用 `convert,onnx,cpu-opt`；macOS 才添加 accelerate。
+跨平台 CI 使用默认 feature 加 `convert`；macOS 才添加 accelerate。
 29 个合成测试覆盖空间 InstanceNorm、half-pixel resize、频率 shuffle、HyperACE preset、
 ONNX 调度/BN folding/拒绝规则、GEMM 卷积与后端卷积一致、batch 轴和 MDX DSP / 取消保护；
 微型 RoFormer 的非相邻同宽频带、非单位 gamma，在 NdArray 与 Flex、手动与自动分块、
@@ -115,7 +116,7 @@ Flex CPU 的卷积/矩阵乘走 Rayon，可在启动前设置 `RAYON_NUM_THREADS
 `NO_TRACK/.venv-parity`（在新机器按 requirements 重建）、macOS 二进制、本机运行产物和 autotune
 缓存；autotune 结果与 GPU、驱动和 CubeCL 版本绑定，新机器首次运行会重新调优。
 
-Linux 构建去掉 `accelerate`：`cargo build --release --locked --features convert,wgpu,onnx,cpu-opt`，
+Linux 构建去掉 `accelerate`：`cargo build --release --locked`（需要转换时加 `--features convert`），
 有 NVIDIA GPU 时再加 `cuda`。后端为 CPU（Flex / NdArray）、WGPU（Linux 上走 Vulkan）与 CUDA。
 迁移后先用 `scripts/parity-matrix.sh` 按后端复核数值，再用 `scripts/benchmark-backends.sh`
 （同一二进制、多后端串行，先预热缓存）和 `scripts/benchmark-matrix.sh`（新旧二进制对比）测速，

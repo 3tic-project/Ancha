@@ -26,10 +26,11 @@ CUDA 的 GEMM 仍为 CubeCL 通用内核（未接 cuBLAS / Tensor Core）。
 
 ## 构建与本机使用
 
-Rust 1.92.0，首次构建需联网获取 Cargo.lock 中的依赖。macOS 本机推荐：
+Rust 1.92.0，首次构建需联网获取 Cargo.lock 中的依赖。默认 feature 已包含 CPU 优化（`cpu-opt`）、WGPU 与
+MDX ONNX；`convert`（checkpoint 转换）、macOS `accelerate` 与 NVIDIA `cuda` 按需追加。macOS 本机推荐：
 
 ```bash
-cargo build --release --locked --features convert,wgpu,accelerate,onnx,cpu-opt
+cargo build --release --locked --features convert,accelerate
 target/release/ancha doctor --backend wgpu
 target/release/ancha inspect NO_TRACK/models/leap-xe-voc
 
@@ -46,15 +47,17 @@ Deux 两轨都标为 predicted。运行报告记录有效参数、PCM/权重摘�
 Linux / Windows 不启用 Apple Accelerate：
 
 ```bash
-cargo build --release --locked --features convert,wgpu,onnx,cpu-opt
-# 使用 CPU，可省略 wgpu feature。
+cargo build --release --locked            # CPU + WGPU + MDX ONNX
 target/release/ancha doctor --backend cpu
 
-# NVIDIA GPU：需要驱动与 CUDA Toolkit 12.x 的 NVRTC；构建时 nvcc 在 PATH 中（或设
+# NVIDIA GPU 只需再加 cuda：需要驱动与 CUDA Toolkit 12.x 的 NVRTC；构建时 nvcc 在 PATH 中（或设
 # CUDARC_CUDA_VERSION=12020 一类的值与驱动匹配）。运行时动态加载，不链接 CUDA 库。
-PATH=/usr/local/cuda/bin:$PATH cargo build --release --locked --features convert,cuda,onnx,cpu-opt
+PATH=/usr/local/cuda/bin:$PATH cargo build --release --locked --features cuda
 target/release/ancha doctor --backend cuda
 ```
+
+同一个二进制用 `--backend cpu|ndarray|wgpu|cuda`（GPU 另可 `--device N`）在启动时切换后端。
+`--no-default-features` 仍可构建只含 CPU 的最小版本。
 
 `--duration` 只截取待处理片段；默认依然按原生块长补齐，因此短片段不必然按时长线性提速。
 若希望快速技术测试，可显式改变上下文并保留对应报告：
@@ -77,6 +80,24 @@ WGPU / CUDA 启用 autotune：某模型与上下文首次运行会先实测内�
 CUDA 另按 GPU 架构与模型缓存 NVRTC 编译结果。GPU 设备线程上的显存分配失败会使任务报错，
 不会发布结果。
 
+## 示例
+
+`examples/` 演示 SDK 调用方式，后端由 `ancha::backend` 在运行时选择：
+
+```bash
+# 单个模型：目录为 RoFormer 包（Leap / Deux / HyperACE），.onnx 为经典 MDX。
+cargo run --release --example separate -- 'NO_TRACK/test_file/ReoNa - Amore.mp3' \
+  NO_TRACK/models/deux NO_TRACK/runs/example-deux --backend wgpu --start 30 --duration 30
+
+# 全部 8 个模型完整分离一首歌并记录性能（NVIDIA 加 --features cuda）。
+cargo run --release --features cuda --example separate_all -- --backend cuda
+```
+
+`separate_all` 在一个进程里串行运行 Leap、Deux、HyperACE voc / inst 与四个 MDX，各自使用原生上下文和
+后端默认设置。输出写到 `NO_TRACK/runs/examples/separate-all-<后端>-<时间>/<模型>/`，每个模型结束后更新
+`summary.json`（主机与设备、各阶段耗时、首块 / 稳态每块耗时、RTF、各轨峰值与 RMS、CUDA 显存占用）；
+`--only`、`--start`、`--duration` 可缩小范围。本机 CUDA 全曲结果见 [CUDA 记录](docs/cuda.md#整首歌全模型示例)。
+
 ## 新工作区准备模型
 
 当前工作区的已转换模型包位于 `NO_TRACK/models/leap-xe-voc` 和 `NO_TRACK/models/deux`。
@@ -96,8 +117,8 @@ target/release/ancha convert NO_TRACK/models/bs_leap_xe_voc.ckpt \
 
 ```bash
 cargo fmt --all --check
-cargo clippy --workspace --all-targets --features convert,onnx,cpu-opt --locked -- -D warnings
-cargo test --workspace --features convert,onnx,cpu-opt --locked
+cargo clippy --workspace --all-targets --features convert --locked -- -D warnings
+cargo test --workspace --features convert --locked
 target/release/ancha bench --tokens 256 --iterations 5
 
 # 在空闲机器上顺序比较同模型、同 PCM、同上下文的两种投影布局。
