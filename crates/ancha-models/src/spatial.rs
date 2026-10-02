@@ -15,7 +15,8 @@ pub(crate) fn silu<B: Backend, const D: usize>(x: Tensor<B, D>) -> Tensor<B, D> 
 
 /// Ungrouped, undilated 2-D convolution as a patch gather plus one GEMM.
 /// Without cooperative-matrix units CubeCL runs direct convolution, several times
-/// slower than its tuned GEMM; the arithmetic is the same sum of products.
+/// slower than its tuned GEMM; the arithmetic is the same sum of products. On CUDA the
+/// implicit-GEMM kernel in [`crate::fused::conv2d`] gathers patches on the fly instead.
 /// Returns `None` when the weight and input disagree so callers keep the backend path.
 pub fn conv2d_gemm<B: Backend>(
     x: Tensor<B, 4>,
@@ -28,6 +29,9 @@ pub fn conv2d_gemm<B: Backend>(
     let [o, ci, kh, kw] = weight.dims();
     if c != ci || h + 2 * padding[0] < kh || w + 2 * padding[1] < kw {
         return None;
+    }
+    if let Some(y) = crate::fused::conv2d(&x, &weight, bias.as_ref(), stride, padding) {
+        return Some(y);
     }
     if b > 1 {
         // One patch matrix at a time: a 3×3 layer expands its input 9×, and several

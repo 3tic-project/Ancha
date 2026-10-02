@@ -6,6 +6,8 @@
 #[cfg(feature = "cuda")]
 mod attention;
 #[cfg(feature = "cuda")]
+mod conv;
+#[cfg(feature = "cuda")]
 mod gemm;
 
 use burn::tensor::{Tensor, backend::Backend};
@@ -132,6 +134,50 @@ pub fn linear<B: Backend>(
     }
 }
 
+/// `conv2d(x, weight, bias)` for NCHW `x`, `weight [o, c, kh, kw]`, `groups == 1` and no
+/// dilation, gathering patches while loading instead of materializing them; `None` unless
+/// `c·kh·kw % 8 == 0`.
+pub fn conv2d<B: Backend>(
+    x: &Tensor<B, 4>,
+    weight: &Tensor<B, 4>,
+    bias: Option<&Tensor<B, 1>>,
+    stride: [usize; 2],
+    padding: [usize; 2],
+) -> Option<Tensor<B, 4>> {
+    let [_, channels, height, width] = x.dims();
+    let [out_channels, c, kh, kw] = weight.dims();
+    let depth = c * kh * kw;
+    if c != channels
+        || depth == 0
+        || depth % 8 != 0
+        || height + 2 * padding[0] < kh
+        || width + 2 * padding[1] < kw
+        || stride.contains(&0)
+    {
+        return None;
+    }
+    #[cfg(feature = "cuda")]
+    {
+        // Every operand as rank 4: the weight flattened to [o, depth, 1, 1], the bias to [o, 1, 1, 1].
+        let weight = weight.clone().reshape([out_channels, depth, 1, 1]);
+        let bias = bias.map(|b| b.clone().reshape([out_channels, 1, 1, 1]));
+        let mut inputs = vec![x, &weight];
+        inputs.extend(&bias);
+        let kernel = cube::Kernel::Conv {
+            kernel: [kh, kw],
+            stride,
+            padding,
+            bias: bias.is_some(),
+        };
+        cube::dispatch(kernel, &inputs)
+    }
+    #[cfg(not(feature = "cuda"))]
+    {
+        let _ = (out_channels, bias);
+        None
+    }
+}
+
 /// Whether backend `B` has the hand-written kernels (shape limits aside).
 pub fn available<B: Backend>() -> bool {
     #[cfg(feature = "cuda")]
@@ -164,6 +210,13 @@ mod cube {
             residual: bool,
             rotary: Option<(usize, usize)>,
         },
+        /// `[x, weight [o, depth, 1, 1], bias [o, 1, 1, 1]?]` → `[b, o, oh, ow]`.
+        Conv {
+            kernel: [usize; 2],
+            stride: [usize; 2],
+            padding: [usize; 2],
+            bias: bool,
+        },
     }
     impl Kernel {
         fn id(self) -> &'static str {
@@ -171,6 +224,7 @@ mod cube {
                 Self::Attention { .. } => "ancha_flash_attention",
                 Self::GatedAttention { .. } => "ancha_gated_attention",
                 Self::Linear { .. } => "ancha_gemm",
+                Self::Conv { .. } => "ancha_conv2d",
             }
         }
         fn output_shape(self, inputs: &[Shape]) -> Shape {
@@ -179,6 +233,16 @@ mod cube {
                     [inputs[0][0], inputs[0][1], heads, super::ATTENTION_HEAD_DIM].into()
                 }
                 Self::Linear { .. } => [inputs[0][0], inputs[1][1]].into(),
+                Self::Conv {
+                    kernel,
+                    stride,
+                    padding,
+                    ..
+                } => {
+                    let out =
+                        |i: usize| (inputs[0][2 + i] + 2 * padding[i] - kernel[i]) / stride[i] + 1;
+                    [inputs[0][0], inputs[1][0], out(0), out(1)].into()
+                }
             }
         }
     }
@@ -228,6 +292,15 @@ mod cube {
                         rotary: rotary.map(|(tokens, width)| (next(), tokens, width)),
                     };
                     super::gemm::launch(x, w, operands)
+                }
+                Kernel::Conv {
+                    kernel,
+                    stride,
+                    padding,
+                    bias,
+                } => {
+                    let (x, w) = (next(), next());
+                    super::conv::launch(x, w, bias.then(&mut next), kernel, stride, padding)
                 }
             }
         }

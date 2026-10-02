@@ -104,6 +104,39 @@ fn cuda_separation_matches_flex_cpu_for_both_families() {
 }
 
 #[test]
+fn cuda_implicit_gemm_convolution_matches_backend_convolution() {
+    let d = device();
+    // 1×1, padded 3×3, strided 2×2; 2-row and 4-row channel tiles with partial tiles,
+    // position counts off the 128 / 4 grid, two batch items.
+    for (batch, ci, co, k, s, p, h, w, bias) in [
+        (1, 8, 16, 1, 1, 0, 9, 13, false),
+        (2, 16, 48, 3, 1, 1, 11, 23, true),
+        (1, 8, 130, 3, 1, 1, 7, 37, true),
+        (2, 48, 40, 2, 2, 0, 10, 31, false),
+    ] {
+        let x = wave([batch, ci, h, w], 0.3, &d);
+        let weight = wave([co, ci, k, k], 1.1, &d).mul_scalar(0.2);
+        let b = wave([co], 2.0, &d);
+        let expected = conv2d(
+            x.clone(),
+            weight.clone(),
+            bias.then(|| b.clone()),
+            ConvOptions::new([s, s], [p, p], [1, 1], 1),
+        );
+        let actual = fused::conv2d(&x, &weight, bias.then_some(&b), [s, s], [p, p])
+            .expect("implicit GEMM convolution");
+        assert_eq!(actual.dims(), expected.dims());
+        let max = max_abs(expected, actual);
+        assert!(
+            max < 1e-5,
+            "conv [{batch}, {ci}, {h}, {w}] -> {co}, k{k} s{s} p{p}: {max}"
+        );
+    }
+    let x = wave([1, 3, 5, 5], 0.0, &d);
+    assert!(fused::conv2d(&x, &wave([4, 3, 3, 3], 0.0, &d), None, [1, 1], [1, 1]).is_none());
+}
+
+#[test]
 fn cuda_gemm_convolution_matches_backend_convolution() {
     type B = Cuda;
     let d = device();
