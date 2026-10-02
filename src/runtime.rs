@@ -306,6 +306,7 @@ pub fn separate<B: Backend>(
         .into(),
         build_features: [
             ("wgpu", cfg!(feature = "wgpu")),
+            ("cuda", cfg!(feature = "cuda")),
             ("accelerate", cfg!(feature = "accelerate")),
             ("convert", cfg!(feature = "convert")),
             ("onnx", cfg!(feature = "onnx")),

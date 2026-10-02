@@ -9,6 +9,7 @@ publish = false
 [features]
 default = []
 wgpu = ["burn/wgpu", "burn/fusion"]
+cuda = ["burn/cuda", "burn/fusion"]
 convert = ["burn-store/pytorch"]
 onnx = ["dep:onnx-rs"]
 

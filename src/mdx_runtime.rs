@@ -356,6 +356,7 @@ pub fn separate_mdx<B: Backend>(
         build_features: [
             ("onnx", cfg!(feature = "onnx")),
             ("wgpu", cfg!(feature = "wgpu")),
+            ("cuda", cfg!(feature = "cuda")),
             ("accelerate", cfg!(feature = "accelerate")),
             ("convert", cfg!(feature = "convert")),
             ("simd", cfg!(feature = "simd")),

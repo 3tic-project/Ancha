@@ -16,3 +16,8 @@ jobs:
       - run: cargo clippy --workspace --all-targets --features convert,onnx,cpu-opt --locked -- -D warnings
       - run: cargo test --workspace --features convert,onnx,cpu-opt --locked
       - run: cargo check --features wgpu,onnx,cpu-opt --locked
+      # Compile-only: CUDA libraries load at runtime, the version pins cudarc bindings.
+      - if: runner.os == 'Linux'
+        run: cargo check --features cuda,onnx,cpu-opt --locked
+        env:
+          CUDARC_CUDA_VERSION: "12020"

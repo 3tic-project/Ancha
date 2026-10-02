@@ -27,6 +27,7 @@ publish = false
 [features]
 default = []
 wgpu = ["ancha-models/wgpu", "burn/wgpu", "burn/fusion", "burn/autotune"]
+cuda = ["ancha-models/cuda", "burn/cuda", "burn/fusion", "burn/autotune"]
 accelerate = ["burn/accelerate"]
 convert = ["ancha-models/convert"]
 onnx = ["ancha-models/onnx"]

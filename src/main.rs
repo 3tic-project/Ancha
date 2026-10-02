@@ -70,6 +70,8 @@ enum BackendChoice {
     /// Legacy Burn NdArray CPU backend, kept for ablation and comparison.
     Ndarray,
     Wgpu,
+    /// NVIDIA CUDA through CubeCL (NVRTC kernels, fusion, autotune).
+    Cuda,
 }
 #[derive(Args)]
 struct SeparateArgs {
@@ -175,6 +177,17 @@ fn run() -> Result<()> {
                     );
                 }
             }
+            BackendChoice::Cuda => {
+                #[cfg(feature = "cuda")]
+                doctor::<burn::backend::Cuda>(&burn::backend::cuda::CudaDevice::new(device))?;
+                #[cfg(not(feature = "cuda"))]
+                {
+                    let _ = device;
+                    anyhow::bail!(
+                        "CUDA support is not built; use cargo build --release --features cuda"
+                    );
+                }
+            }
         },
         Command::Separate(args) => {
             ensure!(args.max_seconds > 0, "max-seconds must be positive");
@@ -219,7 +232,7 @@ fn run() -> Result<()> {
                     batched_linear: !args.flatten_linear,
                     host_threads: match (args.backend, args.host_threads) {
                         (_, Some(n)) => n,
-                        (BackendChoice::Wgpu, None) => 1,
+                        (BackendChoice::Wgpu | BackendChoice::Cuda, None) => 1,
                         (_, None) => std::thread::available_parallelism().map_or(1, |n| n.get()),
                     },
                 },
@@ -255,6 +268,22 @@ fn run() -> Result<()> {
                     #[cfg(not(feature = "wgpu"))]
                     {
                         anyhow::bail!("WGPU support is not built; use --features wgpu");
+                    }
+                }
+                BackendChoice::Cuda => {
+                    #[cfg(feature = "cuda")]
+                    {
+                        separate::<burn::backend::Cuda>(
+                            &options,
+                            &burn::backend::cuda::CudaDevice::new(args.device),
+                            "cuda",
+                            &cancelled,
+                            progress,
+                        )?
+                    }
+                    #[cfg(not(feature = "cuda"))]
+                    {
+                        anyhow::bail!("CUDA support is not built; use --features cuda");
                     }
                 }
             };
@@ -377,7 +406,7 @@ fn run_mdx(args: SeparateArgs, cancelled: &AtomicBool) -> Result<()> {
         optimized: !args.mdx_no_optimize,
         batch_size: args.mdx_batch_size,
         conv_gemm: match args.conv_strategy {
-            ConvStrategy::Auto => matches!(args.backend, BackendChoice::Wgpu),
+            ConvStrategy::Auto => matches!(args.backend, BackendChoice::Wgpu | BackendChoice::Cuda),
             ConvStrategy::Gemm => true,
             ConvStrategy::Backend => false,
         },
@@ -411,6 +440,20 @@ fn run_mdx(args: SeparateArgs, cancelled: &AtomicBool) -> Result<()> {
             }
             #[cfg(not(feature = "wgpu"))]
             anyhow::bail!("WGPU support is not built; use --features wgpu");
+        }
+        BackendChoice::Cuda => {
+            #[cfg(feature = "cuda")]
+            {
+                separate_mdx::<burn::backend::Cuda>(
+                    &options,
+                    &burn::backend::cuda::CudaDevice::new(args.device),
+                    "cuda",
+                    cancelled,
+                    progress,
+                )?
+            }
+            #[cfg(not(feature = "cuda"))]
+            anyhow::bail!("CUDA support is not built; use --features cuda");
         }
     };
     println!("{}", serde_json::to_string_pretty(&report)?);
