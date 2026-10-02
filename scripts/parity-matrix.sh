@@ -52,3 +52,4 @@ for b in $BACKENDS; do
     mdx "$M/$m.onnx" "$b"
   done
 done
+"$PY" scripts/summarize_parity.py "$OUT" --binary "$BIN" --output "$OUT/summary.json"
