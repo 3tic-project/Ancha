@@ -1,0 +1,36 @@
+{
+  "scope": "same-backend single-run execution-plan ablation; no context change",
+  "model_id": "leap-xe-voc",
+  "backend": "wgpu",
+  "audio_seconds": 3.0,
+  "weights_sha256": "23446229b01cfc5858e4fce68b8b6bd97e66b55533ee5ba98d1b303a03393b1b",
+  "input_pcm_sha256": "f05dcb894bbcea0d2f5e71381f4a50d4b9c9bbb78a5a2e57823d80a54ebc53a0",
+  "baseline_linear_layout": "batched",
+  "optimized_linear_layout": "batched",
+  "baseline_query_tile": 128,
+  "baseline_group_tile": 4,
+  "optimized_query_tile": 512,
+  "optimized_group_tile": 16,
+  "baseline_total_seconds": 6.174845612,
+  "optimized_total_seconds": 5.477916881,
+  "baseline_model_seconds": 5.326612918,
+  "optimized_model_seconds": 4.488411613,
+  "total_speedup": 1.1272251379748528,
+  "model_speedup": 1.1867478692400397,
+  "comparisons": [
+    {
+      "stem": "vocals",
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "status": "passed"
+    },
+    {
+      "stem": "instrumental",
+      "max_abs": 0.0,
+      "mean_abs": 0.0,
+      "status": "passed"
+    }
+  ],
+  "status": "passed",
+  "measurement_note": "Single-run 3-second context; mild concurrent CPU workload for tuned run. Not a native-context speedup claim."
+}

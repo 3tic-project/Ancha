@@ -1,0 +1,44 @@
+{
+  "adapter": "AMD Radeon RX 580",
+  "backend": "Metal",
+  "cases": [
+    {
+      "dim": 13,
+      "max_abs": 2.384185791015625e-07,
+      "rows": 3,
+      "scale": 1.0,
+      "status": "passed"
+    },
+    {
+      "dim": 256,
+      "max_abs": 4.76837158203125e-07,
+      "rows": 4,
+      "scale": 1.0,
+      "status": "passed"
+    },
+    {
+      "dim": 1025,
+      "max_abs": 7.152557373046875e-07,
+      "rows": 2,
+      "scale": 1.0,
+      "status": "passed"
+    },
+    {
+      "dim": 8,
+      "max_abs": 0.0,
+      "rows": 2,
+      "scale": 0.0,
+      "status": "passed"
+    },
+    {
+      "dim": 8,
+      "max_abs": 3.725290298461914e-09,
+      "rows": 2,
+      "scale": 9.9999998245167e-15,
+      "status": "passed"
+    }
+  ],
+  "device_type": "DiscreteGpu",
+  "scope": "standalone fused norm kernel; not a model benchmark",
+  "status": "passed"
+}

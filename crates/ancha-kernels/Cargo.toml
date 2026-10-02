@@ -1,0 +1,10 @@
+[package]
+name = "ancha-kernels"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "ancha_kernels"

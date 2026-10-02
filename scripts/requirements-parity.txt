@@ -1,0 +1,12 @@
+# Development-only, Intel macOS verification environment (Python 3.11).
+torch==2.2.2
+numpy==1.26.4
+librosa==0.11.0
+numba==0.61.2
+llvmlite==0.44.0
+beartype==0.22.9
+rotary-embedding-torch==0.8.9
+einops==0.8.1
+safetensors==0.6.2
+pyyaml==6.0.3
+soundfile==0.14.0

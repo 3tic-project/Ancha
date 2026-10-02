@@ -1,0 +1,17 @@
+[package]
+name = "ancha-audio"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+realfft = "3.5"
+symphonia = { version = "0.5.5", default-features = false, features = ["mp3", "flac", "wav", "pcm"] }
+hound = "3.5"
+rubato = "0.16.2"
+
+[dev-dependencies]
+tempfile = "3"

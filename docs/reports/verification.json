@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-02",
+  "platform": "macos-x86_64",
+  "rust": "1.92.0",
+  "commands": {
+    "cargo fmt --all --check": "passed",
+    "cargo clippy --workspace --all-targets --features convert,accelerate,wgpu --locked -- -D warnings": "passed",
+    "cargo test --workspace --features convert,accelerate,wgpu --locked": "passed (19 tests)",
+    "cargo build --release --features convert,accelerate,wgpu --locked": "passed",
+    "bash -n scripts/*.sh": "passed",
+    "python -m py_compile scripts/*.py": "passed"
+  },
+  "cancellation": {
+    "real_model": "leap-xe-voc",
+    "status": "cancelled on SIGINT",
+    "output_published": false
+  },
+  "not_validated": [
+    "Leap Xe instrumental checkpoint",
+    "HyperACE forward",
+    "CUDA",
+    "clean-stem SDR",
+    "full 277-second song",
+    "other hardware/platforms"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+  "source_revision": "MSST/84b1eac0887756b4f1a9d7a1ff49105939749ed2",
+  "torch": "2.2.2",
+  "numpy": "1.26.4",
+  "platform": "macOS-15.7.7-x86_64-i386-64bit",
+  "threads": 6,
+  "samples": 132300,
+  "sample_rate": 44100,
+  "model_id": "leap-xe-voc",
+  "pytorch_forward_seconds": 25.433904969599098,
+  "comparisons": [
+    {
+      "stem": "vocals",
+      "max_abs": 5.7220458984375e-06,
+      "mean_abs": 2.6008642277909967e-07,
+      "waveform_snr_db": 108.12417145018023,
+      "status": "passed"
+    }
+  ],
+  "status": "passed"
+}

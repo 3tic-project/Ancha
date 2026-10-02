@@ -1,0 +1,25 @@
+[package]
+name = "ancha-models"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+default = []
+wgpu = ["burn/wgpu", "burn/fusion"]
+convert = ["burn-store/pytorch"]
+
+[dependencies]
+anyhow.workspace = true
+burn.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+safetensors = "=0.8.0"
+burn-store = { version = "=0.21.0", default-features = false, features = ["std", "safetensors"] }
+sha2 = "0.10"
+
+[dev-dependencies]
+ancha-kernels = { path = "../ancha-kernels" }
+tempfile = "3"

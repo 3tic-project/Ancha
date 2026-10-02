@@ -1,0 +1,31 @@
+{
+  "backend": "ndarray",
+  "dim": 64,
+  "group_tile": 4,
+  "groups": 4,
+  "heads": 2,
+  "iterations": 5,
+  "max_abs": 1.564621925354004e-07,
+  "query_tile": 128,
+  "scalar_median_seconds": 0.030801602,
+  "scalar_samples_seconds": [
+    0.029849421,
+    0.030193405,
+    0.030801602,
+    0.031346034,
+    0.032518339
+  ],
+  "scalar_scores_bytes": 2097152,
+  "scope": "synthetic attention operator; not full-model speedup",
+  "speedup": 3.2087448751300625,
+  "tiled_median_seconds": 0.009599268,
+  "tiled_samples_seconds": [
+    0.00880212,
+    0.009584532,
+    0.009599268,
+    0.009932436,
+    0.01070426
+  ],
+  "tiled_scores_bytes": 1048576,
+  "tokens": 256
+}

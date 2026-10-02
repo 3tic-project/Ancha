@@ -1,0 +1,53 @@
+[workspace]
+members = ["crates/ancha-audio", "crates/ancha-models", "crates/ancha-kernels"]
+resolver = "2"
+exclude = ["NO_TRACK/acceleration-lab", "NO_TRACK/acceleration-lab/burn-probe", "NO_TRACK/acceleration-lab/wgpu-probe", "NO_TRACK/eplyt-reference", "NO_TRACK/rust-roformer-prd/code/acceleration-lab", "NO_TRACK/rust-roformer-prd/code/acceleration-lab/burn-probe", "NO_TRACK/rust-roformer-prd/code/acceleration-lab/wgpu-probe"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+license = "MIT"
+
+[workspace.dependencies]
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+burn = { version = "=0.21.0", default-features = false, features = ["std", "ndarray"] }
+
+[package]
+name = "ancha"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Native Rust RoFormer audio separation CLI and SDK"
+publish = false
+
+[features]
+default = []
+wgpu = ["ancha-models/wgpu", "burn/wgpu", "burn/fusion"]
+accelerate = ["burn/accelerate"]
+convert = ["ancha-models/convert"]
+
+[dependencies]
+ancha-audio = { path = "crates/ancha-audio" }
+ancha-models = { path = "crates/ancha-models" }
+ancha-kernels = { path = "crates/ancha-kernels" }
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+burn.workspace = true
+clap = { version = "4.5", features = ["derive"] }
+sha2 = "0.10"
+ctrlc = "3.5"
+tempfile = "3"
+
+[dev-dependencies]
+tempfile = "3"
+safetensors = "=0.8.0"
+
+[profile.release]
+opt-level = 3
+lto = false
+codegen-units = 16
