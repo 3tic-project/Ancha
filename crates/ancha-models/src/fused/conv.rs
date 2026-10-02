@@ -2,8 +2,8 @@
 //! `groups == 1`: patches are gathered from the input while loading each tile, never stored.
 //! A cube computes `16·R` output channels × 128 positions, `k` in steps of 8 with
 //! double-buffered shared memory filled through registers. 256 units as 16×16; unit `(tx, ty)`
-//! owns channels `R·ty..R·ty+R` and positions `{4tx, 64 + 4tx} + 0..4`. `R = 4` for wide
-//! layers, `R = 2` when there are at most 32 output channels.
+//! owns channels `R·ty..R·ty+R` and positions `{4tx, 64 + 4tx} + 0..4`, with `R` of 2, 3 or 4
+//! picked so the channel count fills whole cubes where possible.
 use burn_cubecl::{
     CubeRuntime, kernel::into_contiguous, ops::numeric::empty_device_contiguous_dtype,
     tensor::CubeTensor,
@@ -12,14 +12,16 @@ use cubecl::prelude::*;
 
 const POSITIONS: usize = 128;
 
-#[derive(CubeLaunch, CubeType)]
-struct Geometry {
-    kernel_h: u32,
-    kernel_w: u32,
-    stride_h: u32,
-    stride_w: u32,
-    pad_h: u32,
-    pad_w: u32,
+/// Kernel size, stride and padding; compile-time, so the patch index arithmetic divides by
+/// constants. Models use a handful of geometries.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+pub struct Geometry {
+    pub kernel_h: usize,
+    pub kernel_w: usize,
+    pub stride_h: usize,
+    pub stride_w: usize,
+    pub pad_h: usize,
+    pub pad_w: usize,
 }
 
 #[cube(launch_unchecked)]
@@ -28,7 +30,7 @@ fn conv2d<F: Float>(
     weight: &Tensor<Vector<F, Const<4>>>,
     bias: &Tensor<F>,
     y: &mut Tensor<F>,
-    geometry: Geometry,
+    #[comptime] geometry: Geometry,
     #[comptime] rows: usize,
     #[comptime] has_bias: bool,
 ) {
@@ -39,8 +41,6 @@ fn conv2d<F: Float>(
     let out_w = y.shape(3);
     let positions = y.shape(2) * out_w;
     let depth = weight.shape(1);
-    let (kernel_h, kernel_w) = (geometry.kernel_h as usize, geometry.kernel_w as usize);
-    let window = kernel_h * kernel_w;
     let plane = height * width;
     let block_rows = 16 * rows;
 
@@ -77,8 +77,8 @@ fn conv2d<F: Float>(
         let p = p0 + b_col * 4 + u;
         inside[u] = p < positions;
         // Offset by the padding so coordinates stay unsigned: input row = origin - pad.
-        origin_h[u] = (p / out_w) * geometry.stride_h as usize;
-        origin_w[u] = (p % out_w) * geometry.stride_w as usize;
+        origin_h[u] = (p / out_w) * geometry.stride_h;
+        origin_w[u] = (p % out_w) * geometry.stride_w;
     }
 
     let mut a_next = zero;
@@ -96,12 +96,10 @@ fn conv2d<F: Float>(
             origin_w[u],
             inside[u],
             channels_in,
-            window,
-            kernel_w,
             plane,
             height,
             width,
-            &geometry,
+            geometry,
         );
     }
     if a_loads {
@@ -137,12 +135,10 @@ fn conv2d<F: Float>(
                     origin_w[u],
                     inside[u],
                     channels_in,
-                    window,
-                    kernel_w,
                     plane,
                     height,
                     width,
-                    &geometry,
+                    geometry,
                 );
             }
         }
@@ -209,18 +205,17 @@ fn gather<F: Float>(
     origin_w: usize,
     inside: bool,
     channels_in: usize,
-    window: usize,
-    kernel_w: usize,
     plane: usize,
     height: usize,
     width: usize,
-    geometry: &Geometry,
+    #[comptime] geometry: Geometry,
 ) -> F {
+    let window = geometry.kernel_h * geometry.kernel_w;
     let channel = k / window;
     let tap = k % window;
-    let row = origin_h + tap / kernel_w;
-    let col = origin_w + tap % kernel_w;
-    let (pad_h, pad_w) = (geometry.pad_h as usize, geometry.pad_w as usize);
+    let row = origin_h + tap / geometry.kernel_w;
+    let col = origin_w + tap % geometry.kernel_w;
+    let (pad_h, pad_w) = (geometry.pad_h, geometry.pad_w);
     let mut value = F::new(0.0);
     if inside
         && channel < channels_in
@@ -267,7 +262,17 @@ pub fn launch<R: CubeRuntime>(
         [batch, out_channels, out_h, out_w].into(),
         x.dtype,
     );
-    let rows = if out_channels <= 32 { 2 } else { 4 };
+    // Channels per unit: whole cubes where the channel count allows (MDX widths are multiples
+    // of 48), two for narrow layers.
+    let rows = if out_channels.is_multiple_of(64) {
+        4
+    } else if out_channels.is_multiple_of(48) {
+        3
+    } else if out_channels <= 32 {
+        2
+    } else {
+        4
+    };
     let client = x.client.clone();
     let has_bias = bias.is_some();
     // Unused when `has_bias` is false; any valid f32 tensor binds the slot.
@@ -277,14 +282,14 @@ pub fn launch<R: CubeRuntime>(
         out_channels.div_ceil(16 * rows) as u32,
         batch as u32,
     );
-    let geometry = GeometryLaunch::new(
-        kernel[0] as u32,
-        kernel[1] as u32,
-        stride[0] as u32,
-        stride[1] as u32,
-        padding[0] as u32,
-        padding[1] as u32,
-    );
+    let geometry = Geometry {
+        kernel_h: kernel[0],
+        kernel_w: kernel[1],
+        stride_h: stride[0],
+        stride_w: stride[1],
+        pad_h: padding[0],
+        pad_w: padding[1],
+    };
     // SAFETY: every gather is bounds-checked against the input; rows / positions against the
     // output shape computed above.
     unsafe {
