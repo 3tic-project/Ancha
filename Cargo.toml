@@ -26,7 +26,7 @@ publish = false
 
 [features]
 default = []
-wgpu = ["ancha-models/wgpu", "burn/wgpu", "burn/fusion"]
+wgpu = ["ancha-models/wgpu", "burn/wgpu", "burn/fusion", "burn/autotune"]
 accelerate = ["burn/accelerate"]
 convert = ["ancha-models/convert"]
 onnx = ["ancha-models/onnx"]
@@ -42,6 +42,7 @@ serde.workspace = true
 serde_json.workspace = true
 burn.workspace = true
 burn-ndarray = { version = "=0.21.0", default-features = false, optional = true }
+burn-flex = { version = "=0.21.0", default-features = false, features = ["std", "simd", "rayon"] }
 clap = { version = "4.5", features = ["derive"] }
 sha2 = "0.10"
 ctrlc = "3.5"

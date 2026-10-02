@@ -101,6 +101,7 @@ dependencies = [
  "ancha-models",
  "anyhow",
  "burn",
+ "burn-flex",
  "burn-ndarray",
  "clap",
  "ctrlc",
@@ -722,6 +723,7 @@ dependencies = [
  "libm",
  "macerator",
  "num-traits",
+ "rayon",
 ]
 
 [[package]]

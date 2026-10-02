@@ -9,6 +9,7 @@ use burn::{
     backend::NdArray,
     tensor::{Tensor, backend::Backend},
 };
+use burn_flex::Flex;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use std::{
     path::PathBuf,
@@ -64,7 +65,10 @@ enum Command {
 }
 #[derive(Clone, Copy, ValueEnum)]
 enum BackendChoice {
+    /// Burn Flex CPU backend: gemm matmul / im2col convolution, strided views.
     Cpu,
+    /// Legacy Burn NdArray CPU backend, kept for ablation and comparison.
+    Ndarray,
     Wgpu,
 }
 #[derive(Args)]
@@ -141,7 +145,8 @@ fn run() -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&read_manifest(&model)?)?)
         }
         Command::Doctor { backend, device } => match backend {
-            BackendChoice::Cpu => doctor::<NdArray<f32>>(&Default::default())?,
+            BackendChoice::Cpu => doctor::<Flex>(&Default::default())?,
+            BackendChoice::Ndarray => doctor::<NdArray<f32>>(&Default::default())?,
             BackendChoice::Wgpu => {
                 #[cfg(feature = "wgpu")]
                 doctor::<burn::backend::Wgpu>(&burn::backend::wgpu::WgpuDevice::DiscreteGpu(
@@ -197,7 +202,14 @@ fn run() -> Result<()> {
             };
             let progress = |n, total| eprintln!("separated chunk {n}/{total}");
             let report = match args.backend {
-                BackendChoice::Cpu => separate::<NdArray<f32>>(
+                BackendChoice::Cpu => separate::<Flex>(
+                    &options,
+                    &Default::default(),
+                    "cpu-flex",
+                    &cancelled,
+                    progress,
+                )?,
+                BackendChoice::Ndarray => separate::<NdArray<f32>>(
                     &options,
                     &Default::default(),
                     "cpu-ndarray",
@@ -340,7 +352,14 @@ fn run_mdx(args: SeparateArgs, cancelled: &AtomicBool) -> Result<()> {
     };
     let progress = |n, total| eprintln!("separated MDX chunk {n}/{total}");
     let report = match args.backend {
-        BackendChoice::Cpu => separate_mdx::<NdArray<f32>>(
+        BackendChoice::Cpu => separate_mdx::<Flex>(
+            &options,
+            &Default::default(),
+            "cpu-flex",
+            cancelled,
+            progress,
+        )?,
+        BackendChoice::Ndarray => separate_mdx::<NdArray<f32>>(
             &options,
             &Default::default(),
             "cpu-ndarray",

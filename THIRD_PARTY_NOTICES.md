@@ -49,5 +49,6 @@ HyperACE 的 Rust 适配根据
 核对。图执行器和 DSP 是 Rust 重实现；独立参考脚本仅从已下载的 UVR 文件读取原始方法。
 公开权重由 [TRvlvr/model_repo](https://github.com/TRvlvr/model_repo/releases/tag/all_public_uvr_models)
 单独提供，不因 UVR GUI 的代码许可而推定权重许可。
-onnx-rs 0.1.2 为 MIT。可选 CPU SIMD/并行计算由 Burn NdArray 的 SIMD/Rayon 实现提供，
+onnx-rs 0.1.2 为 MIT。默认 CPU 后端为 Burn Flex 0.21.0（MIT OR Apache-2.0，内部使用 gemm、
+macerator 与 Rayon）；可选旧 CPU 路径由 Burn NdArray 的 SIMD/Rayon 实现提供，
 准确依赖、版本及许可证见 Cargo.lock 和上游 crate 元数据。
