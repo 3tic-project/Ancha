@@ -1,6 +1,7 @@
 use ancha::{
+    backend::{self, BackendKind},
     benchmark::attention_benchmark,
-    runtime::{SeparateOptions, separate},
+    runtime::SeparateOptions,
 };
 use ancha_audio::decode::DecodeOptions;
 use ancha_models::{roformer::AttentionPlan, weights::read_manifest};
@@ -30,7 +31,7 @@ enum Command {
     /// Check the selected backend using an actual tensor operation.
     Doctor {
         #[arg(long, value_enum, default_value = "cpu")]
-        backend: BackendChoice,
+        backend: BackendKind,
         #[arg(long, default_value_t = 0)]
         device: usize,
     },
@@ -63,16 +64,6 @@ enum Command {
         config: Option<PathBuf>,
     },
 }
-#[derive(Clone, Copy, ValueEnum)]
-enum BackendChoice {
-    /// Burn Flex CPU backend: gemm matmul / im2col convolution, strided views.
-    Cpu,
-    /// Legacy Burn NdArray CPU backend, kept for ablation and comparison.
-    Ndarray,
-    Wgpu,
-    /// NVIDIA CUDA through CubeCL (NVRTC kernels, fusion, autotune).
-    Cuda,
-}
 #[derive(Args)]
 struct SeparateArgs {
     input: PathBuf,
@@ -81,7 +72,7 @@ struct SeparateArgs {
     #[arg(long, short = 'o')]
     output: PathBuf,
     #[arg(long, value_enum, default_value = "cpu")]
-    backend: BackendChoice,
+    backend: BackendKind,
     #[arg(long, default_value_t = 0)]
     device: usize,
     #[arg(long, default_value_t = 0.0)]
@@ -173,9 +164,9 @@ fn run() -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&read_manifest(&model)?)?)
         }
         Command::Doctor { backend, device } => match backend {
-            BackendChoice::Cpu => doctor::<Flex>(&Default::default())?,
-            BackendChoice::Ndarray => doctor::<NdArray<f32>>(&Default::default())?,
-            BackendChoice::Wgpu => {
+            BackendKind::Cpu => doctor::<Flex>(&Default::default())?,
+            BackendKind::Ndarray => doctor::<NdArray<f32>>(&Default::default())?,
+            BackendKind::Wgpu => {
                 #[cfg(feature = "wgpu")]
                 doctor::<burn::backend::Wgpu>(&burn::backend::wgpu::WgpuDevice::DiscreteGpu(
                     device,
@@ -188,9 +179,12 @@ fn run() -> Result<()> {
                     );
                 }
             }
-            BackendChoice::Cuda => {
+            BackendKind::Cuda => {
                 #[cfg(feature = "cuda")]
-                doctor::<burn::backend::Cuda>(&cuda_device(device, "doctor".as_ref())?)?;
+                {
+                    log_cuda_device(device, "doctor")?;
+                    doctor::<burn::backend::Cuda>(&backend::cuda_device(device, "doctor")?)?;
+                }
                 #[cfg(not(feature = "cuda"))]
                 {
                     let _ = device;
@@ -218,6 +212,27 @@ fn run() -> Result<()> {
                     && args.mdx_batch_size == 1,
                 "MDX flags require an ONNX model"
             );
+            let kind = args.backend;
+            let mut attention = kind.attention_plan();
+            attention.query_tile = args.query_tile;
+            attention.group_tile = args.group_tile;
+            attention.score_budget = args
+                .max_score_mib
+                .checked_mul(1 << 20)
+                .ok_or_else(|| anyhow::anyhow!("score limit overflow"))?;
+            match (args.flatten_linear, args.linear_layout) {
+                (true, _) | (_, LinearLayout::Flattened) => attention.batched_linear = false,
+                (_, LinearLayout::Batched) => attention.batched_linear = true,
+                (_, LinearLayout::Auto) => {}
+            }
+            if let Some(threads) = args.host_threads {
+                attention.host_threads = threads;
+            }
+            match args.conv_strategy {
+                ConvStrategy::Auto => {}
+                ConvStrategy::Gemm => attention.conv_gemm = true,
+                ConvStrategy::Backend => attention.conv_gemm = false,
+            }
             let options = SeparateOptions {
                 input: args.input,
                 model: args.model,
@@ -232,80 +247,15 @@ fn run() -> Result<()> {
                 },
                 chunk_samples: args.chunk_samples,
                 overlap: args.overlap,
-                attention: AttentionPlan {
-                    query_tile: args.query_tile,
-                    group_tile: args.group_tile,
-                    score_budget: args
-                        .max_score_mib
-                        .checked_mul(1 << 20)
-                        .ok_or_else(|| anyhow::anyhow!("score limit overflow"))?,
-                    batched_linear: match (args.flatten_linear, args.linear_layout) {
-                        (true, _) | (_, LinearLayout::Flattened) => false,
-                        (_, LinearLayout::Batched) => true,
-                        (_, LinearLayout::Auto) => !matches!(args.backend, BackendChoice::Cuda),
-                    },
-                    host_threads: match (args.backend, args.host_threads) {
-                        (_, Some(n)) => n,
-                        (BackendChoice::Wgpu | BackendChoice::Cuda, None) => 1,
-                        (_, None) => std::thread::available_parallelism().map_or(1, |n| n.get()),
-                    },
-                    conv_gemm: match args.conv_strategy {
-                        ConvStrategy::Auto => matches!(args.backend, BackendChoice::Cuda),
-                        ConvStrategy::Gemm => true,
-                        ConvStrategy::Backend => false,
-                    },
-                },
+                attention,
                 max_score_mib: args.max_score_mib,
             };
+            #[cfg(feature = "cuda")]
+            if kind == BackendKind::Cuda {
+                log_cuda_device(args.device, &backend::cache_scope(&options.model))?;
+            }
             let progress = |n, total| eprintln!("separated chunk {n}/{total}");
-            let report = match args.backend {
-                BackendChoice::Cpu => separate::<Flex>(
-                    &options,
-                    &Default::default(),
-                    "cpu-flex",
-                    &cancelled,
-                    progress,
-                )?,
-                BackendChoice::Ndarray => separate::<NdArray<f32>>(
-                    &options,
-                    &Default::default(),
-                    "cpu-ndarray",
-                    &cancelled,
-                    progress,
-                )?,
-                BackendChoice::Wgpu => {
-                    #[cfg(feature = "wgpu")]
-                    {
-                        separate::<burn::backend::Wgpu>(
-                            &options,
-                            &burn::backend::wgpu::WgpuDevice::DiscreteGpu(args.device),
-                            "wgpu",
-                            &cancelled,
-                            progress,
-                        )?
-                    }
-                    #[cfg(not(feature = "wgpu"))]
-                    {
-                        anyhow::bail!("WGPU support is not built; use --features wgpu");
-                    }
-                }
-                BackendChoice::Cuda => {
-                    #[cfg(feature = "cuda")]
-                    {
-                        separate::<burn::backend::Cuda>(
-                            &options,
-                            &cuda_device(args.device, &options.model)?,
-                            "cuda",
-                            &cancelled,
-                            progress,
-                        )?
-                    }
-                    #[cfg(not(feature = "cuda"))]
-                    {
-                        anyhow::bail!("CUDA support is not built; use --features cuda");
-                    }
-                }
-            };
+            let report = backend::separate(kind, args.device, &options, &cancelled, progress)?;
             println!("{}", serde_json::to_string_pretty(&report)?);
         }
         Command::Bench {
@@ -381,16 +331,15 @@ fn run() -> Result<()> {
 }
 
 #[cfg(feature = "cuda")]
-fn cuda_device(index: usize, scope: &std::path::Path) -> Result<burn::backend::cuda::CudaDevice> {
-    let scope = scope.file_name().unwrap_or_default().to_string_lossy();
-    let info = ancha::cuda::prepare(index, &scope)?;
+fn log_cuda_device(index: usize, scope: &str) -> Result<()> {
+    let info = ancha::cuda::prepare(index, scope)?;
     eprintln!(
         "CUDA device {index}: {} (sm_{}, {:.1} GiB)",
         info.name,
         info.compute_capability,
         info.total_memory_bytes as f64 / (1u64 << 30) as f64
     );
-    Ok(burn::backend::cuda::CudaDevice::new(index))
+    Ok(())
 }
 
 fn doctor<B: Backend>(device: &B::Device) -> Result<()> {
@@ -411,7 +360,7 @@ fn doctor<B: Backend>(device: &B::Device) -> Result<()> {
 
 #[cfg(feature = "onnx")]
 fn run_mdx(args: SeparateArgs, cancelled: &AtomicBool) -> Result<()> {
-    use ancha::mdx_runtime::{MdxOptions, separate_mdx};
+    use ancha::mdx_runtime::MdxOptions;
     ensure!(
         args.chunk_samples.is_none()
             && args.overlap.is_none()
@@ -439,56 +388,17 @@ fn run_mdx(args: SeparateArgs, cancelled: &AtomicBool) -> Result<()> {
         optimized: !args.mdx_no_optimize,
         batch_size: args.mdx_batch_size,
         conv_gemm: match args.conv_strategy {
-            ConvStrategy::Auto => matches!(args.backend, BackendChoice::Wgpu | BackendChoice::Cuda),
+            ConvStrategy::Auto => args.backend.mdx_conv_gemm(),
             ConvStrategy::Gemm => true,
             ConvStrategy::Backend => false,
         },
     };
+    #[cfg(feature = "cuda")]
+    if args.backend == BackendKind::Cuda {
+        log_cuda_device(args.device, &backend::cache_scope(&options.model))?;
+    }
     let progress = |n, total| eprintln!("separated MDX chunk {n}/{total}");
-    let report = match args.backend {
-        BackendChoice::Cpu => separate_mdx::<Flex>(
-            &options,
-            &Default::default(),
-            "cpu-flex",
-            cancelled,
-            progress,
-        )?,
-        BackendChoice::Ndarray => separate_mdx::<NdArray<f32>>(
-            &options,
-            &Default::default(),
-            "cpu-ndarray",
-            cancelled,
-            progress,
-        )?,
-        BackendChoice::Wgpu => {
-            #[cfg(feature = "wgpu")]
-            {
-                separate_mdx::<burn::backend::Wgpu>(
-                    &options,
-                    &burn::backend::wgpu::WgpuDevice::DiscreteGpu(args.device),
-                    "wgpu",
-                    cancelled,
-                    progress,
-                )?
-            }
-            #[cfg(not(feature = "wgpu"))]
-            anyhow::bail!("WGPU support is not built; use --features wgpu");
-        }
-        BackendChoice::Cuda => {
-            #[cfg(feature = "cuda")]
-            {
-                separate_mdx::<burn::backend::Cuda>(
-                    &options,
-                    &cuda_device(args.device, &options.model)?,
-                    "cuda",
-                    cancelled,
-                    progress,
-                )?
-            }
-            #[cfg(not(feature = "cuda"))]
-            anyhow::bail!("CUDA support is not built; use --features cuda");
-        }
-    };
+    let report = backend::separate_mdx(args.backend, args.device, &options, cancelled, progress)?;
     println!("{}", serde_json::to_string_pretty(&report)?);
     Ok(())
 }
