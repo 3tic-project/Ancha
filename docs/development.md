@@ -131,6 +131,9 @@ Flex CPU 的卷积/矩阵乘走 Rayon，可在启动前设置 `RAYON_NUM_THREADS
 
 ## 迁移到其它机器
 
+完整打包、校验、Linux CUDA 构建和十模型验收入口见 [CUDA 开发迁移包](cuda-transfer.md)。
+`scripts/package-cuda-transfer.py` 生成源码 / 资产两包并逐文件验证，`scripts/cuda-dev.sh` 提供构建与测试步骤。
+
 迁移包分为源码与资产两部分。源码包含 `.git`、文档、脚本和 NO_TRACK 中的参考代码与实验记录；
 资产包含 `NO_TRACK/models`（checkpoint、已转换模型包、四个 ONNX）、`NO_TRACK/test_file`
 以及基准使用的 `NO_TRACK/runs/clip-3s.wav` / `clip-30s.wav`。不迁移 `target`、

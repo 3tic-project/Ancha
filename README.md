@@ -23,6 +23,7 @@ HyperACE 与经典 MDX 的适配、使用和任务语义见 [新增适配文档]
 两个 Derur 模型的下载、转换、DSP、速度消融与验收见 [Mel Karaoke / MDX23C](docs/derur-adapters.md)。
 CPU / WGPU 推理速度审计、算子折叠与当前实测见 [速度优化记录](docs/speed-optimization.md)；
 CUDA 后端的适配、优化、profile 与 Linux 三后端实测见 [CUDA 记录](docs/cuda.md)；
+复制到 NVIDIA 开发机的打包、解压、构建与十模型验收见 [CUDA 迁移说明](docs/cuda-transfer.md)；
 上一轮速度见 [适配性能记录](docs/adapters-performance.md)。目前仍未完成 Leap inst 独立验收。
 CUDA 上 RoFormer 的 attention、投影和各模型的卷积由手写 CubeCL FP32 内核执行（未用 cuBLAS / Tensor Core），
 Tesla P4 上原生块比通用路径快 3.1–3.8×；WGPU / CPU 仍走 Burn 通用路径。
