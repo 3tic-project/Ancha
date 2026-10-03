@@ -241,6 +241,7 @@ fn tdf<B: Backend>(linear: &Linear<B>, x: Tensor<B, 4>, optimized: bool) -> Tens
     let weight = linear.weight.val();
     let out = weight.dims()[1];
     let flat = x.clone().reshape([b * c * t, f]);
+    // Narrow frequency projections (m = 8, 16, 32, 64, …) are zero-padded inside the GEMM.
     match crate::fused::linear(&flat, &weight, crate::fused::Epilogue::default()) {
         Some(y) => y.reshape([b, c, t, out]),
         None => linear.forward(x),

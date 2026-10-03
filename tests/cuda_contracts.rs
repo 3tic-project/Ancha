@@ -9,7 +9,7 @@ use ancha_models::{
     config::Family,
     fused,
     roformer::{AttentionPlan, AxisRope, exact_attention},
-    spatial::conv2d_gemm,
+    spatial::{InstanceNorm, conv2d_gemm},
 };
 use burn::{
     backend::{Cuda, cuda::CudaDevice},
@@ -298,6 +298,52 @@ fn cuda_gemm_epilogues_match_burn_ops() {
 }
 
 #[test]
+fn cuda_instance_norm_matches_reference_reduction() {
+    let d = device();
+    for (shape, eps) in [([2, 16, 7, 13], 1e-5), ([1, 8, 128, 64], 1e-8)] {
+        let n: usize = shape.iter().product();
+        let data: Vec<f32> = (0..n).map(|i| ((i as f32) * 0.013).sin()).collect();
+        let gamma: Vec<f32> = (0..shape[1]).map(|i| 0.4 + i as f32 * 0.05).collect();
+        let beta: Vec<f32> = (0..shape[1]).map(|i| i as f32 * 0.02 - 0.1).collect();
+        let reference = |x: Tensor<Flex, 4>, g: Tensor<Flex, 1>, b: Tensor<Flex, 1>| {
+            InstanceNorm::from_affine_with_epsilon(g, b, eps).forward(x)
+        };
+        let expected: Vec<f32> = reference(
+            Tensor::from_data(TensorData::new(data.clone(), shape), &Default::default()),
+            Tensor::from_data(
+                TensorData::new(gamma.clone(), [shape[1]]),
+                &Default::default(),
+            ),
+            Tensor::from_data(
+                TensorData::new(beta.clone(), [shape[1]]),
+                &Default::default(),
+            ),
+        )
+        .into_data()
+        .to_vec()
+        .unwrap();
+        let actual: Vec<f32> = InstanceNorm::from_affine_with_epsilon(
+            Tensor::<Cuda, 1>::from_data(TensorData::new(gamma, [shape[1]]), &d),
+            Tensor::<Cuda, 1>::from_data(TensorData::new(beta, [shape[1]]), &d),
+            eps,
+        )
+        .forward(Tensor::<Cuda, 4>::from_data(
+            TensorData::new(data, shape),
+            &d,
+        ))
+        .into_data()
+        .to_vec()
+        .unwrap();
+        let max = actual
+            .iter()
+            .zip(&expected)
+            .map(|(x, y)| (x - y).abs())
+            .fold(0f32, f32::max);
+        assert!(max < 1e-5, "instance norm {shape:?} eps {eps}: {max}");
+    }
+}
+
+#[test]
 fn cuda_custom_gemm_matches_burn_matmul() {
     let d = device();
     for (rows, k, m, bias, strided) in [
@@ -326,9 +372,31 @@ fn cuda_custom_gemm_matches_burn_matmul() {
         let max = max_abs(expected, actual);
         assert!(max < 1e-5, "custom GEMM [{rows}, {k}]·[{k}, {m}]: {max}");
     }
+    // MDX23C TDF widths below the 128-column tile: bare GEMM pads, epilogue does not.
+    for (rows, k, m) in [(7, 8, 8), (30, 16, 24), (5, 32, 64), (4, 64, 96), (3, 8, 4)] {
+        let x = wave([rows, k], 0.2, &d);
+        let w = wave([k, m], 1.7, &d).mul_scalar(0.05);
+        let expected = x.clone().matmul(w.clone());
+        let actual = fused::linear(&x, &w, fused::Epilogue::default()).expect("padded GEMM");
+        assert_eq!(actual.dims(), [rows, m]);
+        let max = max_abs(expected, actual);
+        assert!(max < 1e-5, "padded GEMM [{rows}, {k}]·[{k}, {m}]: {max}");
+    }
     let x = wave([4, 16], 0.0, &d);
     let none = fused::Epilogue::default;
-    assert!(fused::linear(&x, &wave([16, 8], 0.0, &d), none()).is_none());
+    let bias = wave([8], 0.3, &d);
+    assert!(fused::linear(&x, &wave([16, 8], 0.0, &d), none()).is_some());
+    assert!(
+        fused::linear(
+            &x,
+            &wave([16, 8], 0.0, &d),
+            fused::Epilogue {
+                bias: Some(&bias),
+                ..fused::Epilogue::default()
+            },
+        )
+        .is_none()
+    );
     assert!(fused::linear(&wave([4, 12], 0.0, &d), &wave([12, 128], 0.0, &d), none()).is_none());
 }
 

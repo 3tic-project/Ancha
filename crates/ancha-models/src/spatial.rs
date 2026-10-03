@@ -102,6 +102,9 @@ impl<B: Backend> InstanceNorm<B> {
         }
     }
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+        if let Some(y) = crate::fused::instance_norm(&x, &self.gamma, &self.beta, self.epsilon) {
+            return y;
+        }
         let mean = x.clone().mean_dim(2).mean_dim(3);
         let centered = x - mean;
         let variance = centered.clone().powf_scalar(2.0).mean_dim(2).mean_dim(3);

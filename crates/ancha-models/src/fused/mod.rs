@@ -9,6 +9,8 @@ mod attention;
 mod conv;
 #[cfg(feature = "cuda")]
 mod gemm;
+#[cfg(feature = "cuda")]
+mod norm;
 
 use burn::tensor::{Tensor, backend::Backend};
 
@@ -76,13 +78,25 @@ impl<B: Backend> Default for Epilogue<'_, B> {
     }
 }
 
-/// Whether [`linear`] handles `[n, k]·[k, m]`: `k % 8 == 0` and `m % 128 == 0`.
+/// Whether the 128-wide GEMM tile covers `[n, k]·[k, m]` with no padding: `k % 8 == 0` and
+/// `m % 128 == 0`. Bare products with a narrower `m` still run; see [`linear`].
 pub fn linear_supported(k: usize, m: usize) -> bool {
     k > 0 && k.is_multiple_of(8) && m > 0 && m.is_multiple_of(128)
 }
 
-/// `x [n, k] · weight [k, m]` in Burn's `Linear` layout, then the [`Epilogue`]; `None` unless
-/// [`linear_supported`] and the epilogue operands fit.
+fn epilogue_empty<B: Backend>(epilogue: &Epilogue<'_, B>) -> bool {
+    epilogue.bias.is_none()
+        && !epilogue.gelu
+        && epilogue.rotary.is_none()
+        && epilogue.residual.is_none()
+}
+
+/// `x [n, k] · weight [k, m]` in Burn's `Linear` layout, then the [`Epilogue`].
+///
+/// The kernel tile is 128 columns. `m` must be a multiple of 128 when an epilogue is present.
+/// A bare product (`k % 8 == 0`, any positive `m`) zero-pads the weight to that tile and
+/// drops the padding, so MDX23C's narrower TDF layers stay on this kernel instead of a
+/// generic matmul. Returns `None` when the shape or epilogue does not fit.
 pub fn linear<B: Backend>(
     x: &Tensor<B, 2>,
     weight: &Tensor<B, 2>,
@@ -90,7 +104,11 @@ pub fn linear<B: Backend>(
 ) -> Option<Tensor<B, 2>> {
     let [n, k] = x.dims();
     let [rows, m] = weight.dims();
-    if rows != k || !linear_supported(k, m) {
+    if rows != k || k == 0 || !k.is_multiple_of(8) || m == 0 {
+        return None;
+    }
+    // Padding would move epilogue columns; those paths keep the aligned tile.
+    if !m.is_multiple_of(128) && !epilogue_empty(&epilogue) {
         return None;
     }
     if let Some((table, width)) = epilogue.rotary {
@@ -109,6 +127,21 @@ pub fn linear<B: Backend>(
     }
     #[cfg(feature = "cuda")]
     {
+        let column_pad = (128 - m % 128) % 128;
+        let padded;
+        let weight = if column_pad == 0 {
+            weight
+        } else {
+            let device = weight.device();
+            padded = Tensor::cat(
+                vec![
+                    weight.clone(),
+                    Tensor::<B, 2>::zeros([k, column_pad], &device),
+                ],
+                1,
+            );
+            &padded
+        };
         // Every operand as a matrix so they share one rank.
         let bias = epilogue.bias.map(|b| b.clone().unsqueeze::<2>());
         let rotary = epilogue.rotary.map(|(table, width)| {
@@ -125,11 +158,16 @@ pub fn linear<B: Backend>(
             residual: epilogue.residual.is_some(),
             rotary: rotary.as_ref().map(|(_, tokens, width)| (*tokens, *width)),
         };
-        cube::dispatch(kernel, &inputs)
+        let out = cube::dispatch(kernel, &inputs)?;
+        if column_pad == 0 {
+            Some(out)
+        } else {
+            Some(out.narrow(1, 0, m))
+        }
     }
     #[cfg(not(feature = "cuda"))]
     {
-        let _ = epilogue;
+        let _ = (n, epilogue);
         None
     }
 }
@@ -178,6 +216,33 @@ pub fn conv2d<B: Backend>(
     }
 }
 
+/// NCHW instance norm, `gamma` / `beta` shaped `[1, c, 1, 1]`. `None` unless `B` is CUDA.
+/// Variance is the biased spatial mean of squares, with `eps` inside the square root.
+pub fn instance_norm<B: Backend>(
+    x: &Tensor<B, 4>,
+    gamma: &Tensor<B, 4>,
+    beta: &Tensor<B, 4>,
+    eps: f32,
+) -> Option<Tensor<B, 4>> {
+    let [n, c, h, w] = x.dims();
+    if n == 0
+        || c == 0
+        || h == 0
+        || w == 0
+        || gamma.dims() != [1, c, 1, 1]
+        || beta.dims() != [1, c, 1, 1]
+        || !eps.is_finite()
+    {
+        return None;
+    }
+    #[cfg(feature = "cuda")]
+    {
+        cube::dispatch(cube::Kernel::Norm { eps }, &[x, gamma, beta])
+    }
+    #[cfg(not(feature = "cuda"))]
+    None
+}
+
 /// Whether backend `B` has the hand-written kernels (shape limits aside).
 pub fn available<B: Backend>() -> bool {
     #[cfg(feature = "cuda")]
@@ -217,6 +282,8 @@ mod cube {
             padding: [usize; 2],
             bias: bool,
         },
+        /// `[x, gamma, beta]` NCHW → normalized `x`. `eps` is inside the root.
+        Norm { eps: f32 },
     }
     impl Kernel {
         fn id(self) -> &'static str {
@@ -225,6 +292,7 @@ mod cube {
                 Self::GatedAttention { .. } => "ancha_gated_attention",
                 Self::Linear { .. } => "ancha_gemm",
                 Self::Conv { .. } => "ancha_conv2d",
+                Self::Norm { .. } => "ancha_instance_norm",
             }
         }
         fn output_shape(self, inputs: &[Shape]) -> Shape {
@@ -243,6 +311,7 @@ mod cube {
                         |i: usize| (inputs[0][2 + i] + 2 * padding[i] - kernel[i]) / stride[i] + 1;
                     [inputs[0][0], inputs[1][0], out(0), out(1)].into()
                 }
+                Self::Norm { .. } => inputs[0].clone(),
             }
         }
     }
@@ -301,6 +370,10 @@ mod cube {
                 } => {
                     let (x, w) = (next(), next());
                     super::conv::launch(x, w, bias.then(&mut next), kernel, stride, padding)
+                }
+                Kernel::Norm { eps } => {
+                    let (x, gamma, beta) = (next(), next(), next());
+                    super::norm::launch(x, gamma, beta, eps)
                 }
             }
         }
