@@ -5,10 +5,15 @@
 # `cuda`, macOS adds `accelerate` (system BLAS) instead.
 #
 # CUDA notes:
-# - The CUDA 12.2 toolkit (nvcc) is installed on the Linux and Windows runners,
-#   matching the reference machine (Tesla P4, driver 535, CUDA 12.2). nvcc pins
-#   the cudarc bindings at build time; a GPU is NOT required to compile. The
-#   driver and NVRTC are loaded at runtime (cudarc `fallback-dynamic-loading`).
+# - Linux is built inside the official `nvidia/cuda:12.2.0-devel-rockylinux9`
+#   image: glibc 2.34, the same base as the reference machine (Rocky Linux 9 +
+#   Tesla P4, driver 535), plus nvcc 12.2 which pins the cudarc bindings.
+#   Building on a newer glibc (ubuntu-22.04 host) produces binaries that Rocky
+#   Linux 9 rejects (`GLIBC_2.35 not found`), hence the container.
+# - Windows installs nvcc 12.2 through the Jimver/cuda-toolkit action (network
+#   method, `nvcc` component only) and builds on the runner host.
+# - The driver and NVRTC are loaded at runtime (cudarc
+#   `fallback-dynamic-loading`); a GPU is NOT required to compile.
 # - Kernels are compiled by NVRTC at runtime for the device actually used; on
 #   the P4 (sm_61) the first CUDA run fills `ptx-sm61/...` in the kernel cache.
 #   CI runners have no GPU, so the workflow asserts the graceful no-driver
@@ -75,7 +80,7 @@ jobs:
         run: cargo test --workspace --features convert --locked
 
       - name: Install CUDA toolkit 12.2 (nvcc; no GPU required)
-        if: startsWith(matrix.features, 'cuda')
+        if: startsWith(matrix.features, 'cuda') && runner.os == 'Windows'
         uses: Jimver/cuda-toolkit@v0.2.36
         with:
           cuda: "12.2.0"
@@ -84,14 +89,39 @@ jobs:
           log-file-suffix: ${{ matrix.target }}
 
       - name: Verify nvcc 12.2
-        if: startsWith(matrix.features, 'cuda')
+        if: startsWith(matrix.features, 'cuda') && runner.os == 'Windows'
         run: |
           set -euo pipefail
           nvcc --version
           nvcc --version | grep -q "release 12.2"
 
       - name: Build release binary (${{ matrix.features }})
+        if: runner.os != 'Linux'
         run: cargo build --release --locked --features "${{ matrix.features }}"
+
+      - name: Build release binary (cuda,convert) in Rocky Linux 9 + CUDA 12.2
+        if: runner.os == 'Linux'
+        env:
+          CUDA_IMAGE: nvidia/cuda:12.2.0-devel-rockylinux9
+        run: |
+          set -euo pipefail
+          docker pull -q "$CUDA_IMAGE"
+          docker run --rm \
+            -v "$PWD":/w -w /w \
+            -v "$HOME/.cargo":/root/.cargo \
+            -v "$HOME/.rustup":/root/.rustup \
+            -e CARGO_TARGET_DIR=/w/target/rocky9 -e CC=gcc \
+            "$CUDA_IMAGE" bash -c '
+              set -euo pipefail
+              export PATH=/root/.cargo/bin:$PATH
+              ldd --version | head -1
+              nvcc --version | tail -2
+              cargo build --release --locked --features cuda,convert
+            '
+          sudo chown -R "$(id -u):$(id -g)" "$HOME/.cargo" "$HOME/.rustup"
+          mkdir -p target/release
+          cp target/rocky9/release/ancha target/release/ancha
+          ls -l target/release/ancha
 
       - name: Resolve binary path
         run: |
