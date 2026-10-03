@@ -139,6 +139,26 @@ Mel 的 30 秒原生上下文完成 21 个块，验证有限值、双声道长�
 它尚未做整段独立 PyTorch 分块比对。MDX23C 的 30 秒参考直接执行 UVR 原始 demix 的 48 个窗口。
 完整修订、SHA、门槛、回退记录与 CUDA 编译边界见 [验收数值](reports/derur-verification.json)。
 
+## 速度消融
+
+同一冻结 release 二进制，3 秒 PCM，每种先预热，交替顺序测三对；表中为总耗时中位数，包含加载与写出。
+MDX23C 保持原生 261120 样本块但 overlap=1，Mel 为 132300 / overlap=1；两者均标记 custom-context。
+这里的倍数只比较相同上下文下的算子布局，不代表缩短上下文或原生质量变化。
+
+| 模型 / 后端 | 基线 | 候选 | 总耗时倍数 | 选择 |
+|---|---:|---:|---:|---|
+| MDX23C WGPU：backend → GEMM 卷积 | 52.459 s | 6.132 s | 8.55× | 默认 GEMM |
+| MDX23C CPU：backend → GEMM 卷积 | 18.180 s | 41.746 s | 0.435× | 默认 backend |
+| Mel WGPU：batched → flattened 投影 | 6.391 s | 9.373 s | 0.682× | 默认 batched |
+| Mel CPU：batched → flattened 投影 | 6.213 s | 6.081 s | 1.022× | 保留 batched，flattened 可显式选择 |
+
+MDX23C WGPU 模型计算本身快 9.93×，三个配对的双轨差异 max_abs≤4.77e-7、SNR≥131.1 dB。
+CPU 的手动 patch gather GEMM 明显更慢；Mel CPU 约 2% 的差异不足以推广到原生 8 秒块。
+GPU backend 卷积第一次预热约 590 秒，未计入中位数。
+30 秒功能验收的原生耗时为 Mel 203.9 s、MDX23C 239.1 s；当时有并行 CPU 参考 / 编译工作，
+这两次不能作为后端间速度排名。原生 MDX23C overlap8 的 48 次 forward 也不能用单块 overlap1 的 RTF 代替。
+完整逐次计时、二进制与 PCM 摘要、波形比较、冷启动及选择依据见 [速度数据](reports/derur-benchmark.json)。
+
 Rust SDK：Mel 使用 `ancha::backend::separate`；MDX23C 使用
 `ancha::backend::separate_mdx23c` + `ancha::mdx23c_runtime::Options`，共用取消标志和进度回调。
 `examples/separate` 可识别两个包，`separate_all --only mel-karaoke-aufr33-viperx,mdx23c-inst-voc-hq2`

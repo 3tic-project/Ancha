@@ -47,7 +47,7 @@
       "samples": 132300,
       "sample_rate": 44100,
       "model_id": "mel-karaoke-aufr33-viperx",
-      "pytorch_forward_seconds": 4.341236135005602,
+      "pytorch_forward_seconds": 5.253352325991727,
       "comparisons": [
         {
           "stem": "lead_vocals",
@@ -70,7 +70,7 @@
       "samples": 132300,
       "sample_rate": 44100,
       "model_id": "mel-karaoke-aufr33-viperx",
-      "pytorch_forward_seconds": 4.409798687993316,
+      "pytorch_forward_seconds": 5.006548698002007,
       "comparisons": [
         {
           "stem": "lead_vocals",
@@ -399,7 +399,8 @@
   "validation_binaries": {
     "mel_initial": "initial adapter release build; no digest captured",
     "mdx23c_final_30s": "bd7b4079c4a848b730b3832a4b4da417958757c034790258937840436c51d64e",
-    "delivery": "4d51a9361d57d6acc9410c74dd63637d244c90dfd53d3870a25ddb10d9627895"
+    "delivery": "4d51a9361d57d6acc9410c74dd63637d244c90dfd53d3870a25ddb10d9627895",
+    "mel_final": "4d51a9361d57d6acc9410c74dd63637d244c90dfd53d3870a25ddb10d9627895"
   },
   "checks": {
     "synthetic_tests": 38,
@@ -407,7 +408,8 @@
     "minimal_cpu_all_targets": "passed",
     "cuda_all_target_clippy": "passed",
     "cuda_hardware": "not executed: no NVIDIA device",
-    "golden_regeneration_max_abs": 2.7284841053187847e-11
+    "golden_regeneration_max_abs": 2.7284841053187847e-11,
+    "macos_accelerate_all_target_clippy": "passed"
   },
   "limitations": [
     "Mel PyTorch parity uses one 3-second custom-context chunk. Its native 30-second run was checked for finite stereo length and residual reconstruction, not independent chunked PyTorch parity.",

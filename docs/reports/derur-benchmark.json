@@ -1,0 +1,1015 @@
+{
+  "date": "2026-10-03",
+  "scope": "serial same frozen release binary and same PCM/context; one warmup per variant excluded; alternating three pairs; FP32 waveform consistency, not SDR",
+  "host": {
+    "os": "macOS-15.7.7-x86_64-i386-64bit",
+    "cpu": "12th Gen Intel(R) Core(TM) i5-12400",
+    "memory_bytes": 68719476736,
+    "gpu": "AMD Radeon RX 580 8 GB, Metal 2",
+    "rust": "1.92.0",
+    "burn": "0.21.0",
+    "cubecl": "0.10.0"
+  },
+  "source_commit": "95b2c03",
+  "binary_sha256": "4d51a9361d57d6acc9410c74dd63637d244c90dfd53d3870a25ddb10d9627895",
+  "cases": [
+    {
+      "case": "final-mdx23c-wgpu-conv",
+      "model_id": "mdx23c-inst-voc-hq2",
+      "backend": "wgpu",
+      "ablation": "conv",
+      "baseline_flags": [
+        "--conv-strategy",
+        "backend"
+      ],
+      "candidate_flags": [
+        "--conv-strategy",
+        "gemm"
+      ],
+      "profile": "custom-context",
+      "samples": 132300,
+      "sample_rate": 44100,
+      "weights_sha256": "92c4ff2753768d19b9eaad5650dc3035927c8130ed11ea7e7bda4c9a97fdd789",
+      "pcm_sha256": "f05dcb894bbcea0d2f5e71381f4a50d4b9c9bbb78a5a2e57823d80a54ebc53a0",
+      "config_sha256": "4fd9701e998174bd62adf1f5d3807379ebed5c3ed92e206048b6080c31a27c7b",
+      "context": {
+        "family": "mdx23c",
+        "n_fft": 8192,
+        "hop": 1024,
+        "frames": 256,
+        "overlap": 1
+      },
+      "chunk_samples": 261120,
+      "conv_strategy": "backend",
+      "build_features": [
+        "wgpu",
+        "onnx",
+        "convert",
+        "cpu-opt",
+        "accelerate"
+      ],
+      "cpu_thread_environment": {},
+      "binary_sha256": "4d51a9361d57d6acc9410c74dd63637d244c90dfd53d3870a25ddb10d9627895",
+      "iterations": 3,
+      "warmups": {
+        "baseline": {
+          "model_load_seconds": 0.917407567,
+          "decode_seconds": 0.002390661,
+          "resample_seconds": 6.8143e-05,
+          "stft_seconds": 0.027726417,
+          "model_seconds": 589.194889095,
+          "istft_seconds": 0.043821113,
+          "overlap_seconds": 0.000601169,
+          "write_seconds": 0.004187811,
+          "total_seconds": 590.196879428,
+          "model_call_seconds": [
+            589.194889095
+          ]
+        },
+        "optimized": {
+          "model_load_seconds": 0.855183764,
+          "decode_seconds": 0.002272301,
+          "resample_seconds": 7.6079e-05,
+          "stft_seconds": 0.02655611,
+          "model_seconds": 6.05469703,
+          "istft_seconds": 0.049215321,
+          "overlap_seconds": 0.000379265,
+          "write_seconds": 0.004432893,
+          "total_seconds": 6.9975163479999996,
+          "model_call_seconds": [
+            6.05469703
+          ]
+        }
+      },
+      "runs": {
+        "baseline": [
+          {
+            "timings": {
+              "model_load_seconds": 0.869649074,
+              "decode_seconds": 0.002491567,
+              "resample_seconds": 6.9503e-05,
+              "stft_seconds": 0.028259014,
+              "model_seconds": 51.289702433,
+              "istft_seconds": 0.064448599,
+              "overlap_seconds": 0.000836061,
+              "write_seconds": 0.005267413,
+              "total_seconds": 52.26608439,
+              "model_call_seconds": [
+                51.289702433
+              ]
+            },
+            "rtf": 17.42202813,
+            "chunks": 1,
+            "model_forwards": 1
+          },
+          {
+            "timings": {
+              "model_load_seconds": 0.872573352,
+              "decode_seconds": 0.002453897,
+              "resample_seconds": 6.8956e-05,
+              "stft_seconds": 0.026326255,
+              "model_seconds": 51.482902892,
+              "istft_seconds": 0.063022685,
+              "overlap_seconds": 0.00033126900000000003,
+              "write_seconds": 0.005021298,
+              "total_seconds": 52.458696534,
+              "model_call_seconds": [
+                51.482902892
+              ]
+            },
+            "rtf": 17.486232177999998,
+            "chunks": 1,
+            "model_forwards": 1
+          },
+          {
+            "timings": {
+              "model_load_seconds": 0.900255249,
+              "decode_seconds": 0.002732123,
+              "resample_seconds": 7.1327e-05,
+              "stft_seconds": 0.026720994,
+              "model_seconds": 51.586817609,
+              "istft_seconds": 0.065523646,
+              "overlap_seconds": 0.000477707,
+              "write_seconds": 0.004674701,
+              "total_seconds": 52.592485119,
+              "model_call_seconds": [
+                51.586817609
+              ]
+            },
+            "rtf": 17.530828373000002,
+            "chunks": 1,
+            "model_forwards": 1
+          }
+        ],
+        "optimized": [
+          {
+            "timings": {
+              "model_load_seconds": 0.871721151,
+              "decode_seconds": 0.002142304,
+              "resample_seconds": 7.8981e-05,
+              "stft_seconds": 0.02729576,
+              "model_seconds": 5.269350091,
+              "istft_seconds": 0.050026293,
+              "overlap_seconds": 0.000697783,
+              "write_seconds": 0.003938252,
+              "total_seconds": 6.230022268,
+              "model_call_seconds": [
+                5.269350091
+              ]
+            },
+            "rtf": 2.0766740893333333,
+            "chunks": 1,
+            "model_forwards": 1
+          },
+          {
+            "timings": {
+              "model_load_seconds": 0.863680942,
+              "decode_seconds": 0.002155206,
+              "resample_seconds": 6.9601e-05,
+              "stft_seconds": 0.026464444,
+              "model_seconds": 5.182136837,
+              "istft_seconds": 0.046556844,
+              "overlap_seconds": 0.000588705,
+              "write_seconds": 0.004217769,
+              "total_seconds": 6.132124116,
+              "model_call_seconds": [
+                5.182136837
+              ]
+            },
+            "rtf": 2.044041372,
+            "chunks": 1,
+            "model_forwards": 1
+          },
+          {
+            "timings": {
+              "model_load_seconds": 0.88286306,
+              "decode_seconds": 0.00214863,
+              "resample_seconds": 6.8764e-05,
+              "stft_seconds": 0.027320885,
+              "model_seconds": 5.064428392,
+              "istft_seconds": 0.045029231,
+              "overlap_seconds": 0.000461928,
+              "write_seconds": 0.004431056,
+              "total_seconds": 6.03188699,
+              "model_call_seconds": [
+                5.064428392
+              ]
+            },
+            "rtf": 2.0106289966666666,
+            "chunks": 1,
+            "model_forwards": 1
+          }
+        ]
+      },
+      "medians": {
+        "baseline": {
+          "total_seconds": 52.458696534,
+          "model_seconds": 51.482902892
+        },
+        "optimized": {
+          "total_seconds": 6.132124116,
+          "model_seconds": 5.182136837
+        }
+      },
+      "total_speedup": 8.554734956705172,
+      "model_speedup": 9.934686117204897,
+      "waveform_comparisons": [
+        {
+          "iteration": 1,
+          "stem": "vocals",
+          "max_abs": 4.172325134277344e-07,
+          "waveform_snr_db": 132.25300199481586
+        },
+        {
+          "iteration": 1,
+          "stem": "instrumental",
+          "max_abs": 4.76837158203125e-07,
+          "waveform_snr_db": 131.15901123417305
+        },
+        {
+          "iteration": 2,
+          "stem": "vocals",
+          "max_abs": 4.172325134277344e-07,
+          "waveform_snr_db": 132.25300199481586
+        },
+        {
+          "iteration": 2,
+          "stem": "instrumental",
+          "max_abs": 4.76837158203125e-07,
+          "waveform_snr_db": 131.15901123417305
+        },
+        {
+          "iteration": 3,
+          "stem": "vocals",
+          "max_abs": 4.172325134277344e-07,
+          "waveform_snr_db": 132.25300199481586
+        },
+        {
+          "iteration": 3,
+          "stem": "instrumental",
+          "max_abs": 4.76837158203125e-07,
+          "waveform_snr_db": 131.15901123417305
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "final-mdx23c-cpu-conv",
+      "model_id": "mdx23c-inst-voc-hq2",
+      "backend": "cpu",
+      "ablation": "conv",
+      "baseline_flags": [
+        "--conv-strategy",
+        "backend"
+      ],
+      "candidate_flags": [
+        "--conv-strategy",
+        "gemm"
+      ],
+      "profile": "custom-context",
+      "samples": 132300,
+      "sample_rate": 44100,
+      "weights_sha256": "92c4ff2753768d19b9eaad5650dc3035927c8130ed11ea7e7bda4c9a97fdd789",
+      "pcm_sha256": "f05dcb894bbcea0d2f5e71381f4a50d4b9c9bbb78a5a2e57823d80a54ebc53a0",
+      "config_sha256": "4fd9701e998174bd62adf1f5d3807379ebed5c3ed92e206048b6080c31a27c7b",
+      "context": {
+        "family": "mdx23c",
+        "n_fft": 8192,
+        "hop": 1024,
+        "frames": 256,
+        "overlap": 1
+      },
+      "chunk_samples": 261120,
+      "conv_strategy": "backend",
+      "build_features": [
+        "wgpu",
+        "onnx",
+        "convert",
+        "cpu-opt",
+        "accelerate"
+      ],
+      "cpu_thread_environment": {},
+      "binary_sha256": "4d51a9361d57d6acc9410c74dd63637d244c90dfd53d3870a25ddb10d9627895",
+      "iterations": 3,
+      "warmups": {
+        "baseline": {
+          "model_load_seconds": 0.426685666,
+          "decode_seconds": 0.002260323,
+          "resample_seconds": 6.7591e-05,
+          "stft_seconds": 0.032390257,
+          "model_seconds": 17.600207452,
+          "istft_seconds": 0.045347074,
+          "overlap_seconds": 0.006484658,
+          "write_seconds": 0.007375608,
+          "total_seconds": 18.129746122,
+          "model_call_seconds": [
+            17.600207452
+          ]
+        },
+        "optimized": {
+          "model_load_seconds": 0.422715275,
+          "decode_seconds": 0.002217979,
+          "resample_seconds": 6.7668e-05,
+          "stft_seconds": 0.032311696,
+          "model_seconds": 41.181031266,
+          "istft_seconds": 0.041746181,
+          "overlap_seconds": 0.000474983,
+          "write_seconds": 0.006836422,
+          "total_seconds": 41.694365996,
+          "model_call_seconds": [
+            41.181031266
+          ]
+        }
+      },
+      "runs": {
+        "baseline": [
+          {
+            "timings": {
+              "model_load_seconds": 0.422061023,
+              "decode_seconds": 0.002498472,
+              "resample_seconds": 6.9716e-05,
+              "stft_seconds": 0.032297751,
+              "model_seconds": 17.665613082,
+              "istft_seconds": 0.042220992,
+              "overlap_seconds": 0.0035430459999999998,
+              "write_seconds": 0.00446265,
+              "total_seconds": 18.180027001,
+              "model_call_seconds": [
+                17.665613082
+              ]
+            },
+            "rtf": 6.060009000333333,
+            "chunks": 1,
+            "model_forwards": 1
+          },
+          {
+            "timings": {
+              "model_load_seconds": 0.424748016,
+              "decode_seconds": 0.002488578,
+              "resample_seconds": 6.9288e-05,
+              "stft_seconds": 0.03127223,
+              "model_seconds": 17.729575153,
+              "istft_seconds": 0.047988180000000005,
+              "overlap_seconds": 0.004166732,
+              "write_seconds": 0.00530473,
+              "total_seconds": 18.253172155,
+              "model_call_seconds": [
+                17.729575153
+              ]
+            },
+            "rtf": 6.084390718333334,
+            "chunks": 1,
+            "model_forwards": 1
+          },
+          {
+            "timings": {
+              "model_load_seconds": 0.424781079,
+              "decode_seconds": 0.002459729,
+              "resample_seconds": 7.1888e-05,
+              "stft_seconds": 0.033235492,
+              "model_seconds": 17.638510953,
+              "istft_seconds": 0.041712974,
+              "overlap_seconds": 0.0036365,
+              "write_seconds": 0.004196928,
+              "total_seconds": 18.15741894,
+              "model_call_seconds": [
+                17.638510953
+              ]
+            },
+            "rtf": 6.05247298,
+            "chunks": 1,
+            "model_forwards": 1
+          }
+        ],
+        "optimized": [
+          {
+            "timings": {
+              "model_load_seconds": 0.427893258,
+              "decode_seconds": 0.001938888,
+              "resample_seconds": 7.3684e-05,
+              "stft_seconds": 0.032787019,
+              "model_seconds": 41.15609512,
+              "istft_seconds": 0.040476768999999996,
+              "overlap_seconds": 0.00047589599999999996,
+              "write_seconds": 0.004427566,
+              "total_seconds": 41.672306944,
+              "model_call_seconds": [
+                41.15609512
+              ]
+            },
+            "rtf": 13.890768981333332,
+            "chunks": 1,
+            "model_forwards": 1
+          },
+          {
+            "timings": {
+              "model_load_seconds": 0.423253486,
+              "decode_seconds": 0.002452968,
+              "resample_seconds": 7.1531e-05,
+              "stft_seconds": 0.032716669,
+              "model_seconds": 41.41176953,
+              "istft_seconds": 0.04046321,
+              "overlap_seconds": 0.000673661,
+              "write_seconds": 0.004025025,
+              "total_seconds": 41.922429816,
+              "model_call_seconds": [
+                41.41176953
+              ]
+            },
+            "rtf": 13.974143272,
+            "chunks": 1,
+            "model_forwards": 1
+          },
+          {
+            "timings": {
+              "model_load_seconds": 0.42426058,
+              "decode_seconds": 0.002436996,
+              "resample_seconds": 7.1232e-05,
+              "stft_seconds": 0.032897033,
+              "model_seconds": 41.225650596,
+              "istft_seconds": 0.048129009,
+              "overlap_seconds": 0.000342435,
+              "write_seconds": 0.004349855,
+              "total_seconds": 41.746097541,
+              "model_call_seconds": [
+                41.225650596
+              ]
+            },
+            "rtf": 13.915365846999999,
+            "chunks": 1,
+            "model_forwards": 1
+          }
+        ]
+      },
+      "medians": {
+        "baseline": {
+          "total_seconds": 18.180027001,
+          "model_seconds": 17.665613082
+        },
+        "optimized": {
+          "total_seconds": 41.746097541,
+          "model_seconds": 41.225650596
+        }
+      },
+      "total_speedup": 0.43549045472202264,
+      "model_speedup": 0.42851023153323,
+      "waveform_comparisons": [
+        {
+          "iteration": 1,
+          "stem": "vocals",
+          "max_abs": 4.470348358154297e-07,
+          "waveform_snr_db": 131.80235263180262
+        },
+        {
+          "iteration": 1,
+          "stem": "instrumental",
+          "max_abs": 4.3213367462158203e-07,
+          "waveform_snr_db": 130.6436967620402
+        },
+        {
+          "iteration": 2,
+          "stem": "vocals",
+          "max_abs": 4.470348358154297e-07,
+          "waveform_snr_db": 131.80235263180262
+        },
+        {
+          "iteration": 2,
+          "stem": "instrumental",
+          "max_abs": 4.3213367462158203e-07,
+          "waveform_snr_db": 130.6436967620402
+        },
+        {
+          "iteration": 3,
+          "stem": "vocals",
+          "max_abs": 4.470348358154297e-07,
+          "waveform_snr_db": 131.80235263180262
+        },
+        {
+          "iteration": 3,
+          "stem": "instrumental",
+          "max_abs": 4.3213367462158203e-07,
+          "waveform_snr_db": 130.6436967620402
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "final-mel-wgpu-linear",
+      "model_id": "mel-karaoke-aufr33-viperx",
+      "backend": "wgpu",
+      "ablation": "linear",
+      "baseline_flags": [
+        "--linear-layout",
+        "batched"
+      ],
+      "candidate_flags": [
+        "--linear-layout",
+        "flattened"
+      ],
+      "profile": "custom-context",
+      "samples": 132300,
+      "sample_rate": 44100,
+      "weights_sha256": "84a13ac5eb12ea9039868df408c4aa07939e2ce7974e47dd7428876b89d53c53",
+      "pcm_sha256": "f05dcb894bbcea0d2f5e71381f4a50d4b9c9bbb78a5a2e57823d80a54ebc53a0",
+      "config_sha256": "730e3d095f387c5109b6c8624bc208db238b5ab6e78732b1fc98d285c2243210",
+      "context": {
+        "family": "mel-band-roformer",
+        "n_fft": 2048,
+        "hop": 441,
+        "dim": 384,
+        "depth": 6,
+        "chunk_samples": 132300,
+        "overlap": 1
+      },
+      "chunk_samples": 132300,
+      "conv_strategy": null,
+      "build_features": [
+        "wgpu",
+        "accelerate",
+        "convert",
+        "onnx",
+        "simd",
+        "cpu-opt"
+      ],
+      "cpu_thread_environment": {},
+      "binary_sha256": "4d51a9361d57d6acc9410c74dd63637d244c90dfd53d3870a25ddb10d9627895",
+      "iterations": 3,
+      "warmups": {
+        "baseline": {
+          "model_load_seconds": 2.954659737,
+          "decode_seconds": 0.002434368,
+          "resample_seconds": 7.121e-05,
+          "stft_seconds": 0.005892478,
+          "model_seconds": 11.598030364,
+          "istft_seconds": 0.006185879,
+          "overlap_seconds": 0.000348016,
+          "write_seconds": 0.004411971,
+          "total_seconds": 14.57762226,
+          "model_call_seconds": [
+            11.598030364
+          ]
+        },
+        "optimized": {
+          "model_load_seconds": 2.850674603,
+          "decode_seconds": 0.002504539,
+          "resample_seconds": 6.7964e-05,
+          "stft_seconds": 0.005889313,
+          "model_seconds": 32.932448577,
+          "istft_seconds": 0.005508245,
+          "overlap_seconds": 0.000351956,
+          "write_seconds": 0.003812474,
+          "total_seconds": 35.806132344,
+          "model_call_seconds": [
+            32.932448577
+          ]
+        }
+      },
+      "runs": {
+        "baseline": [
+          {
+            "timings": {
+              "model_load_seconds": 2.8555069619999998,
+              "decode_seconds": 0.002401596,
+              "resample_seconds": 6.8149e-05,
+              "stft_seconds": 0.005888971,
+              "model_seconds": 7.115195001,
+              "istft_seconds": 0.006582977,
+              "overlap_seconds": 0.00095828,
+              "write_seconds": 0.004450761,
+              "total_seconds": 9.997439886,
+              "model_call_seconds": [
+                7.115195001
+              ]
+            },
+            "rtf": 3.3324799620000003,
+            "chunks": 1,
+            "model_forwards": null
+          },
+          {
+            "timings": {
+              "model_load_seconds": 2.8665897620000003,
+              "decode_seconds": 0.002424697,
+              "resample_seconds": 6.9167e-05,
+              "stft_seconds": 0.005986393,
+              "model_seconds": 3.277747056,
+              "istft_seconds": 0.006820707,
+              "overlap_seconds": 0.000360521,
+              "write_seconds": 0.004205328,
+              "total_seconds": 6.168828199,
+              "model_call_seconds": [
+                3.277747056
+              ]
+            },
+            "rtf": 2.0562760663333335,
+            "chunks": 1,
+            "model_forwards": null
+          },
+          {
+            "timings": {
+              "model_load_seconds": 2.854890642,
+              "decode_seconds": 0.002391412,
+              "resample_seconds": 7.0511e-05,
+              "stft_seconds": 0.005956624,
+              "model_seconds": 3.512458145,
+              "istft_seconds": 0.006830058,
+              "overlap_seconds": 0.000360172,
+              "write_seconds": 0.0038981,
+              "total_seconds": 6.391281449,
+              "model_call_seconds": [
+                3.512458145
+              ]
+            },
+            "rtf": 2.1304271496666667,
+            "chunks": 1,
+            "model_forwards": null
+          }
+        ],
+        "optimized": [
+          {
+            "timings": {
+              "model_load_seconds": 2.863667822,
+              "decode_seconds": 0.00243707,
+              "resample_seconds": 7.1815e-05,
+              "stft_seconds": 0.007256335,
+              "model_seconds": 6.480602228,
+              "istft_seconds": 0.00856654,
+              "overlap_seconds": 0.000740475,
+              "write_seconds": 0.005206079,
+              "total_seconds": 9.372674961,
+              "model_call_seconds": [
+                6.480602228
+              ]
+            },
+            "rtf": 3.124224987,
+            "chunks": 1,
+            "model_forwards": null
+          },
+          {
+            "timings": {
+              "model_load_seconds": 2.8589081800000002,
+              "decode_seconds": 0.00188331,
+              "resample_seconds": 7.0834e-05,
+              "stft_seconds": 0.005981929,
+              "model_seconds": 7.007688821,
+              "istft_seconds": 0.007336831,
+              "overlap_seconds": 0.000359552,
+              "write_seconds": 0.004412947,
+              "total_seconds": 9.892118866,
+              "model_call_seconds": [
+                7.007688821
+              ]
+            },
+            "rtf": 3.2973729553333335,
+            "chunks": 1,
+            "model_forwards": null
+          },
+          {
+            "timings": {
+              "model_load_seconds": 2.8918737329999997,
+              "decode_seconds": 0.002550627,
+              "resample_seconds": 7.5675e-05,
+              "stft_seconds": 0.006040967,
+              "model_seconds": 5.222992991,
+              "istft_seconds": 0.009193729,
+              "overlap_seconds": 0.000364762,
+              "write_seconds": 0.004795305,
+              "total_seconds": 8.143142376,
+              "model_call_seconds": [
+                5.222992991
+              ]
+            },
+            "rtf": 2.714380792,
+            "chunks": 1,
+            "model_forwards": null
+          }
+        ]
+      },
+      "medians": {
+        "baseline": {
+          "total_seconds": 6.391281449,
+          "model_seconds": 3.512458145
+        },
+        "optimized": {
+          "total_seconds": 9.372674961,
+          "model_seconds": 6.480602228
+        }
+      },
+      "total_speedup": 0.6819058033692971,
+      "model_speedup": 0.5419956388966634,
+      "waveform_comparisons": [
+        {
+          "iteration": 1,
+          "stem": "lead_vocals",
+          "max_abs": 2.5331974029541016e-07,
+          "waveform_snr_db": 132.98212611025863
+        },
+        {
+          "iteration": 1,
+          "stem": "karaoke_mix",
+          "max_abs": 2.5331974029541016e-07,
+          "waveform_snr_db": 134.1950037231461
+        },
+        {
+          "iteration": 2,
+          "stem": "lead_vocals",
+          "max_abs": 2.5331974029541016e-07,
+          "waveform_snr_db": 132.98212611025863
+        },
+        {
+          "iteration": 2,
+          "stem": "karaoke_mix",
+          "max_abs": 2.5331974029541016e-07,
+          "waveform_snr_db": 134.1950037231461
+        },
+        {
+          "iteration": 3,
+          "stem": "lead_vocals",
+          "max_abs": 2.5331974029541016e-07,
+          "waveform_snr_db": 132.98212611025863
+        },
+        {
+          "iteration": 3,
+          "stem": "karaoke_mix",
+          "max_abs": 2.5331974029541016e-07,
+          "waveform_snr_db": 134.1950037231461
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "final-mel-cpu-linear",
+      "model_id": "mel-karaoke-aufr33-viperx",
+      "backend": "cpu",
+      "ablation": "linear",
+      "baseline_flags": [
+        "--linear-layout",
+        "batched"
+      ],
+      "candidate_flags": [
+        "--linear-layout",
+        "flattened"
+      ],
+      "profile": "custom-context",
+      "samples": 132300,
+      "sample_rate": 44100,
+      "weights_sha256": "84a13ac5eb12ea9039868df408c4aa07939e2ce7974e47dd7428876b89d53c53",
+      "pcm_sha256": "f05dcb894bbcea0d2f5e71381f4a50d4b9c9bbb78a5a2e57823d80a54ebc53a0",
+      "config_sha256": "730e3d095f387c5109b6c8624bc208db238b5ab6e78732b1fc98d285c2243210",
+      "context": {
+        "family": "mel-band-roformer",
+        "n_fft": 2048,
+        "hop": 441,
+        "dim": 384,
+        "depth": 6,
+        "chunk_samples": 132300,
+        "overlap": 1
+      },
+      "chunk_samples": 132300,
+      "conv_strategy": null,
+      "build_features": [
+        "wgpu",
+        "accelerate",
+        "convert",
+        "onnx",
+        "simd",
+        "cpu-opt"
+      ],
+      "cpu_thread_environment": {},
+      "binary_sha256": "4d51a9361d57d6acc9410c74dd63637d244c90dfd53d3870a25ddb10d9627895",
+      "iterations": 3,
+      "warmups": {
+        "baseline": {
+          "model_load_seconds": 1.088034676,
+          "decode_seconds": 0.00251007,
+          "resample_seconds": 7.2454e-05,
+          "stft_seconds": 0.007536343,
+          "model_seconds": 5.271144267,
+          "istft_seconds": 0.005085912,
+          "overlap_seconds": 0.000367611,
+          "write_seconds": 0.003953869,
+          "total_seconds": 6.384067858,
+          "model_call_seconds": [
+            5.271144267
+          ]
+        },
+        "optimized": {
+          "model_load_seconds": 1.168372683,
+          "decode_seconds": 0.002408141,
+          "resample_seconds": 6.9064e-05,
+          "stft_seconds": 0.008668486,
+          "model_seconds": 5.061614227,
+          "istft_seconds": 0.005081155,
+          "overlap_seconds": 0.000347849,
+          "write_seconds": 0.00393157,
+          "total_seconds": 6.254801127,
+          "model_call_seconds": [
+            5.061614227
+          ]
+        }
+      },
+      "runs": {
+        "baseline": [
+          {
+            "timings": {
+              "model_load_seconds": 1.070624855,
+              "decode_seconds": 0.002453107,
+              "resample_seconds": 6.8451e-05,
+              "stft_seconds": 0.007640679,
+              "model_seconds": 5.073959951,
+              "istft_seconds": 0.004555901,
+              "overlap_seconds": 0.000337046,
+              "write_seconds": 0.004556216,
+              "total_seconds": 6.169169712,
+              "model_call_seconds": [
+                5.073959951
+              ]
+            },
+            "rtf": 2.056389904,
+            "chunks": 1,
+            "model_forwards": null
+          },
+          {
+            "timings": {
+              "model_load_seconds": 1.13660623,
+              "decode_seconds": 0.00211304,
+              "resample_seconds": 6.8107e-05,
+              "stft_seconds": 0.008458442,
+              "model_seconds": 5.190244307,
+              "istft_seconds": 0.00532292,
+              "overlap_seconds": 0.000360826,
+              "write_seconds": 0.005561149,
+              "total_seconds": 6.356142194,
+              "model_call_seconds": [
+                5.190244307
+              ]
+            },
+            "rtf": 2.118714064666667,
+            "chunks": 1,
+            "model_forwards": null
+          },
+          {
+            "timings": {
+              "model_load_seconds": 1.065463502,
+              "decode_seconds": 0.002470346,
+              "resample_seconds": 7.0169e-05,
+              "stft_seconds": 0.008741174,
+              "model_seconds": 5.120816895,
+              "istft_seconds": 0.004849462,
+              "overlap_seconds": 0.000325776,
+              "write_seconds": 0.004809587,
+              "total_seconds": 6.212573451,
+              "model_call_seconds": [
+                5.120816895
+              ]
+            },
+            "rtf": 2.070857817,
+            "chunks": 1,
+            "model_forwards": null
+          }
+        ],
+        "optimized": [
+          {
+            "timings": {
+              "model_load_seconds": 1.059335911,
+              "decode_seconds": 0.002614988,
+              "resample_seconds": 7.8656e-05,
+              "stft_seconds": 0.007165656,
+              "model_seconds": 4.901642288,
+              "istft_seconds": 0.005074461,
+              "overlap_seconds": 0.000351012,
+              "write_seconds": 0.004337124,
+              "total_seconds": 5.9847483,
+              "model_call_seconds": [
+                4.901642288
+              ]
+            },
+            "rtf": 1.9949161,
+            "chunks": 1,
+            "model_forwards": null
+          },
+          {
+            "timings": {
+              "model_load_seconds": 1.081835348,
+              "decode_seconds": 0.002388514,
+              "resample_seconds": 7.1584e-05,
+              "stft_seconds": 0.007684261,
+              "model_seconds": 4.974724965,
+              "istft_seconds": 0.005128711,
+              "overlap_seconds": 0.000345689,
+              "write_seconds": 0.004724539,
+              "total_seconds": 6.081426273,
+              "model_call_seconds": [
+                4.974724965
+              ]
+            },
+            "rtf": 2.027142091,
+            "chunks": 1,
+            "model_forwards": null
+          },
+          {
+            "timings": {
+              "model_load_seconds": 1.077836619,
+              "decode_seconds": 0.002415994,
+              "resample_seconds": 7.1815e-05,
+              "stft_seconds": 0.007470699,
+              "model_seconds": 5.001402062,
+              "istft_seconds": 0.005444014,
+              "overlap_seconds": 0.000378558,
+              "write_seconds": 0.004477452,
+              "total_seconds": 6.105133262,
+              "model_call_seconds": [
+                5.001402062
+              ]
+            },
+            "rtf": 2.0350444206666665,
+            "chunks": 1,
+            "model_forwards": null
+          }
+        ]
+      },
+      "medians": {
+        "baseline": {
+          "total_seconds": 6.212573451,
+          "model_seconds": 5.120816895
+        },
+        "optimized": {
+          "total_seconds": 6.081426273,
+          "model_seconds": 4.974724965
+        }
+      },
+      "total_speedup": 1.0215652006803504,
+      "model_speedup": 1.0293668355593202,
+      "waveform_comparisons": [
+        {
+          "iteration": 1,
+          "stem": "lead_vocals",
+          "max_abs": 0.0,
+          "waveform_snr_db": 283.9621437321802
+        },
+        {
+          "iteration": 1,
+          "stem": "karaoke_mix",
+          "max_abs": 0.0,
+          "waveform_snr_db": 285.2982455585893
+        },
+        {
+          "iteration": 2,
+          "stem": "lead_vocals",
+          "max_abs": 0.0,
+          "waveform_snr_db": 283.9621437321802
+        },
+        {
+          "iteration": 2,
+          "stem": "karaoke_mix",
+          "max_abs": 0.0,
+          "waveform_snr_db": 285.2982455585893
+        },
+        {
+          "iteration": 3,
+          "stem": "lead_vocals",
+          "max_abs": 0.0,
+          "waveform_snr_db": 283.9621437321802
+        },
+        {
+          "iteration": 3,
+          "stem": "karaoke_mix",
+          "max_abs": 0.0,
+          "waveform_snr_db": 285.2982455585893
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "decisions": [
+    "MDX23C CPU keeps backend convolution: manual GEMM is 2.30x slower on this host.",
+    "MDX23C WGPU keeps GEMM convolution and disjoint transpose GEMM: 8.55x end-to-end, 9.93x model speedup.",
+    "Mel WGPU keeps batched projections: flattened is slower (0.682x end-to-end).",
+    "Mel CPU keeps the common batched default: flattened improves only about 2.2% on this custom 3-second context; it remains an explicit override.",
+    "Generic flattened TDF was rejected for RX 580 waveform accuracy. Only supported CUDA custom kernels use flattened TDF; CUDA runtime testing is pending."
+  ],
+  "native_functional_runs": [
+    {
+      "model_id": "mel-karaoke-aufr33-viperx",
+      "backend": "wgpu",
+      "audio_seconds": 30,
+      "chunks": 21,
+      "total_seconds": 203.91294557,
+      "scope": "native context functional/integrity run; concurrent CPU reference work; no independent full chunked Mel parity"
+    },
+    {
+      "model_id": "mdx23c-inst-voc-hq2",
+      "backend": "wgpu",
+      "audio_seconds": 30,
+      "chunks": 48,
+      "total_seconds": 239.117757131,
+      "scope": "native context functional UVR parity run; concurrent CPU validation and release example build; not a cross-backend speed comparison"
+    }
+  ],
+  "limitations": [
+    "All ablations use a 3-second input. MDX23C retains 261120-sample context but changes overlap to 1; Mel uses 132300-sample context and overlap 1. The profiles are custom-context and cannot substitute for native quality/timing.",
+    "GPU autotune warmup is excluded from medians; MDX23C backend-convolution warmup alone took about 590 seconds.",
+    "Only three paired repeats were measured; small differences such as Mel CPU 2.2% should not be generalized.",
+    "No NVIDIA device: CUDA checks are compile-only for these models."
+  ],
+  "status": "passed"
+}

@@ -16,7 +16,7 @@ float32 WAV 输出和可追溯的 run.json。模型与素材均保留在 NO_TRAC
 | Mel Karaoke aufr33 / viperx | dim384 / 6 层主唱模型；CPU / RX 580 WGPU 的独立 PyTorch 波形比对通过 |
 | MDX23C-8KFFT InstVoc HQ2 | 完整 TFC/TDF v3、两个原生输出头；CPU / RX 580 WGPU 的原生重叠比对通过，WGPU 另通过完整 30 秒 UVR 比对 |
 
-前述 Leap、Deux、HyperACE、经典 MDX 共 8 个模型（9 个输出）另在 NVIDIA Tesla P4 的 CUDA 后端与 Linux Xeon CPU 上全部通过同一组参考比对。
+原有 Leap vocals、Deux、HyperACE voc / inst 和四个经典 MDX 共 8 个模型（9 个输出）另在 NVIDIA Tesla P4 的 CUDA 后端与 Linux Xeon CPU 上全部通过同一组参考比对。
 同一 NVIDIA GPU 上的 WGPU（Vulkan）对 Deux 与 HyperACE inst 比对失败（与 CUDA 之前的版本相同），NVIDIA 显卡请用 CUDA。
 
 HyperACE 与经典 MDX 的适配、使用和任务语义见 [新增适配文档](docs/adapters.md)。
