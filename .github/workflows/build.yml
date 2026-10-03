@@ -1,0 +1,207 @@
+# Build release binaries for Windows, Linux and macOS.
+#
+# Feature policy follows docs/development.md: the shared baseline is the default
+# feature set (CPU + WGPU + ONNX + cpu-opt) plus `convert`; Linux and Windows add
+# `cuda`, macOS adds `accelerate` (system BLAS) instead.
+#
+# CUDA notes:
+# - The CUDA 12.2 toolkit (nvcc) is installed on the Linux and Windows runners,
+#   matching the reference machine (Tesla P4, driver 535, CUDA 12.2). nvcc pins
+#   the cudarc bindings at build time; a GPU is NOT required to compile. The
+#   driver and NVRTC are loaded at runtime (cudarc `fallback-dynamic-loading`).
+# - Kernels are compiled by NVRTC at runtime for the device actually used; on
+#   the P4 (sm_61) the first CUDA run fills `ptx-sm61/...` in the kernel cache.
+#   CI runners have no GPU, so the workflow asserts the graceful no-driver
+#   failure path (exit code 2, no panic) instead of running CUDA kernels.
+name: Build binaries
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86_64
+            os: ubuntu-22.04
+            features: cuda,convert
+            py: python3
+          - target: windows-x86_64
+            os: windows-2022
+            features: cuda,convert
+            py: python
+          - target: macos-x86_64
+            os: macos-15-intel
+            features: convert,accelerate
+            py: python3
+          - target: macos-arm64
+            os: macos-15
+            features: convert,accelerate
+            py: python3
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      PY: ${{ matrix.py }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.92.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Unit tests (workspace, default features + convert)
+        run: cargo test --workspace --features convert --locked
+
+      - name: Install CUDA toolkit 12.2 (nvcc; no GPU required)
+        if: startsWith(matrix.features, 'cuda')
+        uses: Jimver/cuda-toolkit@v0.2.36
+        with:
+          cuda: "12.2.0"
+          method: network
+          sub-packages: '["nvcc"]'
+          log-file-suffix: ${{ matrix.target }}
+
+      - name: Verify nvcc 12.2
+        if: startsWith(matrix.features, 'cuda')
+        run: |
+          set -euo pipefail
+          nvcc --version
+          nvcc --version | grep -q "release 12.2"
+
+      - name: Build release binary (${{ matrix.features }})
+        run: cargo build --release --locked --features "${{ matrix.features }}"
+
+      - name: Resolve binary path
+        run: |
+          set -euo pipefail
+          BIN=target/release/ancha
+          if [ "$RUNNER_OS" = "Windows" ]; then BIN=target/release/ancha.exe; fi
+          echo "BIN=$BIN" >> "$GITHUB_ENV"
+          rustc --version
+          ls -l "$BIN"
+
+      - name: "Smoke: CLI, CPU and accelerated CPU doctor"
+        run: |
+          set -euo pipefail
+          "$BIN" --help > /dev/null
+          "$BIN" doctor --backend cpu
+          if [ "$RUNNER_OS" = "macOS" ]; then "$BIN" doctor --backend ndarray; fi
+
+      - name: "Smoke: CUDA without a driver exits 2 and does not panic"
+        if: startsWith(matrix.features, 'cuda')
+        run: |
+          set -euo pipefail
+          set +e
+          "$BIN" doctor --backend cuda > cuda-no-driver.log 2>&1
+          code=$?
+          set -e
+          cat cuda-no-driver.log
+          if [ "$code" -ne 2 ]; then echo "expected exit code 2, got $code"; exit 1; fi
+          if grep -qi "panic" cuda-no-driver.log; then echo "panic detected"; exit 1; fi
+          echo "ok: CUDA probe failed gracefully with exit 2"
+
+      - name: "End-to-end: separate a 3 s synthetic clip on CPU"
+        env:
+          MODEL_URL: https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/UVR_MDXNET_9482.onnx
+        run: |
+          set -euo pipefail
+          mkdir -p models ci-out
+          if [ ! -f models/UVR_MDXNET_9482.onnx ]; then
+            curl -fL --retry 3 -o models/UVR_MDXNET_9482.onnx "$MODEL_URL"
+          fi
+          "$PY" - <<'EOFPY'
+          import hashlib, pathlib
+          h = hashlib.sha256(pathlib.Path("models/UVR_MDXNET_9482.onnx").read_bytes()).hexdigest()
+          want = "f4f365207c56deb115bceedff3ad8fe98a751c745f9e370cecec6226b8b47184"
+          assert h == want, f"model sha256 mismatch: {h}"
+          print("model sha256 ok:", h[:16])
+          EOFPY
+          "$PY" - <<'EOFPY'
+          import math, struct, wave
+          sr, secs = 44100, 3
+          with wave.open("ci-out/clip.wav", "w") as w:
+              w.setnchannels(2)
+              w.setsampwidth(2)
+              w.setframerate(sr)
+              frames = bytearray()
+              for i in range(sr * secs):
+                  v = int(0.25 * 32767 * math.sin(2 * math.pi * 440 * i / sr))
+                  frames += struct.pack("<hh", v, v)
+              w.writeframes(bytes(frames))
+          print("wrote ci-out/clip.wav")
+          EOFPY
+          "$BIN" separate ci-out/clip.wav --model models/UVR_MDXNET_9482.onnx --backend cpu --output ci-out/mdx-9482-cpu
+          ls -l ci-out/mdx-9482-cpu
+          test -f ci-out/mdx-9482-cpu/vocals.wav
+          test -f ci-out/mdx-9482-cpu/instrument.wav
+          test -f ci-out/mdx-9482-cpu/run.json
+          head -c 400 ci-out/mdx-9482-cpu/run.json; echo
+
+      - name: "Smoke: WGPU doctor and separation (macOS Metal)"
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          "$BIN" doctor --backend wgpu --device 0
+          "$BIN" separate ci-out/clip.wav --model models/UVR_MDXNET_9482.onnx --backend wgpu --device 0 --output ci-out/mdx-9482-wgpu
+          ls -l ci-out/mdx-9482-wgpu
+          test -f ci-out/mdx-9482-wgpu/vocals.wav
+          test -f ci-out/mdx-9482-wgpu/run.json
+
+      - name: "Linux compatibility: glibc baseline and Rocky Linux 9 run"
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          echo "GLIBC symbols required by the binary:"
+          objdump -T "$BIN" | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -5
+          echo "Running the full CPU pipeline on Rocky Linux 9 (glibc 2.34, like the P4 box):"
+          docker run --rm -v "$PWD:/w:ro" rockylinux:9 bash -c '
+            set -euo pipefail
+            /w/target/release/ancha --help > /dev/null
+            /w/target/release/ancha doctor --backend cpu
+            /w/target/release/ancha separate /w/ci-out/clip.wav --model /w/models/UVR_MDXNET_9482.onnx --backend cpu --output /tmp/e2e
+            test -f /tmp/e2e/vocals.wav
+            test -f /tmp/e2e/instrument.wav
+            test -f /tmp/e2e/run.json
+            echo "rocky linux 9: full CPU pipeline ok"
+          '
+
+      - name: Collect dist (binary, licenses, SHA256SUMS)
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          if [ "$RUNNER_OS" = "Windows" ]; then cp "$BIN" dist/ancha.exe; else cp "$BIN" dist/ancha; fi
+          cp LICENSE THIRD_PARTY_NOTICES.md dist/
+          "$PY" - <<'EOFPY'
+          import hashlib, pathlib
+          d = pathlib.Path("dist")
+          name = "ancha.exe" if (d / "ancha.exe").exists() else "ancha"
+          h = hashlib.sha256((d / name).read_bytes()).hexdigest()
+          (d / "SHA256SUMS").write_text(f"{h}  {name}\n", encoding="utf-8", newline="\n")
+          print("SHA256SUMS:", h[:16], name)
+          EOFPY
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ancha-${{ matrix.target }}
+          path: dist
+          if-no-files-found: error
