@@ -113,7 +113,7 @@ struct SeparateArgs {
     /// MDX only: fractional overlap (0..=0.95); omitted uses UVR default step.
     #[arg(long)]
     mdx_overlap: Option<f64>,
-    /// Disable MDX BN precomputation/folding and unused-tail pruning for comparison.
+    /// Disable classic MDX graph folding; MDX23C: disable CUDA TDF GEMM and unused-tail pruning.
     #[arg(long)]
     mdx_no_optimize: bool,
     /// MDX only: fixed-shape chunks per forward (1..=4). Increases device memory.
@@ -181,6 +181,13 @@ fn run() -> Result<()> {
                 #[cfg(not(feature = "onnx"))]
                 anyhow::bail!("ONNX support is not built; use --features onnx");
             }
+            if ancha_models::mdx23c::is_package(&model)? {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&ancha_models::mdx23c::read_manifest(&model)?)?
+                );
+                return Ok(());
+            }
             println!("{}", serde_json::to_string_pretty(&read_manifest(&model)?)?)
         }
         Command::Doctor { backend, device } => match backend {
@@ -219,6 +226,11 @@ fn run() -> Result<()> {
             let cancelled = Arc::new(AtomicBool::new(false));
             let flag = cancelled.clone();
             ctrlc::set_handler(move || flag.store(true, std::sync::atomic::Ordering::Relaxed))?;
+            if args.model.extension().is_none_or(|v| v != "onnx")
+                && ancha_models::mdx23c::is_package(&args.model)?
+            {
+                return run_mdx23c(args, &cancelled);
+            }
             if args.model.extension().is_some_and(|v| v == "onnx") {
                 #[cfg(feature = "onnx")]
                 return run_mdx(args, &cancelled);
@@ -331,6 +343,30 @@ fn run() -> Result<()> {
             config,
         } => {
             use ancha_models::config::ModelConfig;
+            if preset == "mdx23c-inst-voc-hq2" {
+                ensure!(
+                    config.is_none(),
+                    "MDX23C preset uses its fixed published config"
+                );
+                let m = ancha_models::convert::convert_mdx23c_checkpoint(&checkpoint, &output)?;
+                if let Err(error) =
+                    ancha_models::mdx23c::Mdx23c::<Flex>::load(&output, &m, &Default::default())
+                {
+                    std::fs::remove_dir_all(&output)?;
+                    return Err(
+                        error.context("converted MDX23C failed strict architecture validation")
+                    );
+                }
+                println!("{}", serde_json::to_string_pretty(&m)?);
+                return Ok(());
+            }
+            if preset == "mel-karaoke-aufr33-viperx" {
+                ensure!(
+                    ancha_models::weights::sha256_file(&checkpoint)?
+                        == "1de20d459332fe8869aeb01327a31df0032262706e1365114e852dc271779813",
+                    "Mel karaoke preset checkpoint checksum mismatch"
+                );
+            }
             let (config, url, license) = if let Some(path) = config {
                 (
                     serde_json::from_slice::<ModelConfig>(&std::fs::read(path)?)?,
@@ -343,7 +379,10 @@ fn run() -> Result<()> {
                     "https://huggingface.co/pcunwa/BS-Roformer-Leap/tree/4e47d6662ae82eaa8b4ac4329fe66099a843b48e".into(),"not specified by checkpoint author".into()),
                 "hyperace-v2-voc" | "hyperace-v2-inst" => (ModelConfig::hyperace_v2(preset=="hyperace-v2-inst"),
                     "https://huggingface.co/pcunwa/BS-Roformer-HyperACE/tree/5b1f8283125d5e4a3614d0e3635a636e09c84059".into(),"not specified by checkpoint author".into()),
-                _ => anyhow::bail!("unknown preset; use leap-xe-voc / leap-xe-inst / hyperace-v2-voc / hyperace-v2-inst, or supply --config"),
+                "mel-karaoke-aufr33-viperx" => (ModelConfig::mel_karaoke(),
+                    "https://huggingface.co/Derur/UVR-models/tree/f3bb9a312519f4404dde996ef1054ec30353c46f/mel_band_roformer_karaoke_aufr33_viperx_sdr_10".into(),
+                    "not specified by the checkpoint mirror".into()),
+                _ => anyhow::bail!("unknown preset; use leap-xe-voc / leap-xe-inst / hyperace-v2-voc / hyperace-v2-inst / mel-karaoke-aufr33-viperx / mdx23c-inst-voc-hq2, or supply --config"),
             }
             };
             let m = ancha_models::convert::convert_checkpoint(
@@ -443,6 +482,52 @@ fn run_mdx(args: SeparateArgs, cancelled: &AtomicBool) -> Result<()> {
     }
     let progress = |n, total| eprintln!("separated MDX chunk {n}/{total}");
     let report = backend::separate_mdx(args.backend, args.device, &options, cancelled, progress)?;
+    println!("{}", serde_json::to_string_pretty(&report)?);
+    Ok(())
+}
+
+fn run_mdx23c(args: SeparateArgs, cancelled: &AtomicBool) -> Result<()> {
+    ensure!(
+        !args.mdx_denoise
+            && args.mdx_overlap.is_none()
+            && args.mdx_batch_size == 1
+            && !args.flatten_linear
+            && args.linear_layout == LinearLayout::Auto
+            && args.host_threads.is_none()
+            && args.query_tile.is_none()
+            && args.group_tile.is_none()
+            && args.attention_kernel == AttentionKernel::Auto
+            && args.gemm_kernel == GemmKernel::Auto,
+        "MDX23C supports --chunk-samples / --overlap / --conv-strategy / --mdx-no-optimize; other MDX/attention flags do not apply"
+    );
+    let options = ancha::mdx23c_runtime::Options {
+        input: args.input,
+        model: args.model,
+        output: args.output,
+        decode: DecodeOptions {
+            start_seconds: args.start,
+            duration_seconds: args.duration,
+            max_samples_per_channel: args
+                .max_seconds
+                .checked_mul(44100)
+                .ok_or_else(|| anyhow::anyhow!("host limit overflow"))?,
+        },
+        chunk_samples: args.chunk_samples,
+        overlap: args.overlap,
+        conv_gemm: match args.conv_strategy {
+            ConvStrategy::Auto => args.backend.mdx_conv_gemm(),
+            ConvStrategy::Gemm => true,
+            ConvStrategy::Backend => false,
+        },
+        optimized: !args.mdx_no_optimize,
+    };
+    let report = backend::separate_mdx23c(
+        args.backend,
+        args.device,
+        &options,
+        cancelled,
+        |n, total| eprintln!("separated MDX23C chunk {n}/{total}"),
+    )?;
     println!("{}", serde_json::to_string_pretty(&report)?);
     Ok(())
 }

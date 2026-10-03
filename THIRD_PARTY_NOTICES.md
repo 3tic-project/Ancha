@@ -52,3 +52,9 @@ HyperACE 的 Rust 适配根据
 onnx-rs 0.1.2 为 MIT。默认 CPU 后端为 Burn Flex 0.21.0（MIT OR Apache-2.0，内部使用 gemm、
 macerator 与 Rayon）；可选旧 CPU 路径由 Burn NdArray 的 SIMD/Rayon 实现提供，
 准确依赖、版本及许可证见 Cargo.lock 和上游 crate 元数据。
+
+Mel Karaoke aufr33 / viperx 与 MDX23C InstVoc HQ2 权重和 YAML 来自用户指定的
+[Derur/UVR-models 固定修订](https://huggingface.co/Derur/UVR-models/tree/f3bb9a312519f4404dde996ef1054ec30353c46f)。
+镜像未明确声明这两份权重的许可，代码 MIT 不扩展到权重；原始与转换权重仅保留在 NO_TRACK。
+Mel forward 依据上述固定 MSST，MDX23C TFC/TDF v3 和矩形 OLA 依据上述固定 UVR 重实现。
+独立参考源码不进入 Git；合成 golden 数据由原创微型权重生成，不包含真实权重或用户歌曲。

@@ -6,7 +6,7 @@ use crate::{
 use ancha_audio::{
     Audio,
     decode::{DecodeOptions, decode},
-    dsp::{Spectrum, SpectrumComplex, Stft},
+    dsp::Stft,
 };
 use ancha_models::mdx::{Mdx, MdxConfig};
 use anyhow::{Result, ensure};
@@ -76,67 +76,11 @@ pub struct MdxReport {
     pub rtf: f64,
 }
 
-/// UVR packs [left.real,left.imag,right.real,right.imag] in NCHW.
+/// Classic MDX suppresses the lowest three bins; MDX23C retains them.
 pub fn pack(stft: &mut Stft, planes: &[Vec<f32>], bins: usize) -> Result<(Vec<f32>, usize)> {
-    ensure!(planes.len() == 2, "MDX requires stereo");
-    let mut packed = Vec::new();
-    let mut frames = 0;
-    for plane in planes {
-        let spectrum = stft.forward(plane)?;
-        ensure!(bins <= spectrum.bins, "MDX bins exceed FFT");
-        frames = spectrum.frames;
-        for ri in 0..2 {
-            for f in 0..bins {
-                for t in 0..frames {
-                    let z = spectrum.data[t * spectrum.bins + f];
-                    packed.push(if f < 3 {
-                        0.
-                    } else if ri == 0 {
-                        z.re
-                    } else {
-                        z.im
-                    });
-                }
-            }
-        }
-    }
-    Ok((packed, frames))
+    crate::spectral::pack(stft, planes, bins, 3)
 }
-pub fn unpack(
-    stft: &mut Stft,
-    packed: &[f32],
-    bins: usize,
-    frames: usize,
-    length: usize,
-) -> Result<Vec<Vec<f32>>> {
-    ensure!(
-        packed.len() == 4 * bins * frames && packed.iter().all(|v| v.is_finite()),
-        "invalid MDX output"
-    );
-    let full = stft.n_fft / 2 + 1;
-    let mut planes = Vec::new();
-    for channel in 0..2 {
-        let mut data = vec![SpectrumComplex::new(0., 0.); full * frames];
-        for t in 0..frames {
-            for f in 0..bins {
-                data[t * full + f] = SpectrumComplex::new(
-                    packed[(channel * 2 * bins + f) * frames + t],
-                    packed[((channel * 2 + 1) * bins + f) * frames + t],
-                );
-            }
-        }
-        planes.push(stft.inverse(
-            &Spectrum {
-                frames,
-                bins: full,
-                data,
-            },
-            length,
-            false,
-        )?);
-    }
-    Ok(planes)
-}
+pub use crate::spectral::unpack;
 pub fn separate_mdx<B: Backend>(
     o: &MdxOptions,
     d: &B::Device,

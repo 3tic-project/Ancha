@@ -231,10 +231,10 @@ pub fn separate<B: Backend>(
     let reconstruction = if stems.len() == 1 {
         let residual = residual_audio(&input, &stems[0].2)?;
         let error = reconstruction_error(&input, &stems[0].2, &residual);
-        let name = if stems[0].0 == "vocals" {
-            "instrumental"
-        } else {
-            "vocals"
+        let name = match stems[0].0.as_str() {
+            "vocals" => "instrumental",
+            "lead_vocals" => "karaoke_mix",
+            _ => "vocals",
         };
         stems.push((name.into(), "residual".into(), residual));
         Some(error)

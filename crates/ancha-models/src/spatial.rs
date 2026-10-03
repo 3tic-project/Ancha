@@ -67,9 +67,19 @@ pub fn conv2d_gemm<B: Backend>(
 pub struct InstanceNorm<B: Backend> {
     gamma: Tensor<B, 4>,
     beta: Tensor<B, 4>,
+    epsilon: f32,
 }
 impl<B: Backend> InstanceNorm<B> {
     pub(crate) fn load(w: &mut Weights<'_>, p: &str, c: usize, d: &B::Device) -> Result<Self> {
+        Self::load_with_epsilon(w, p, c, 1e-8, d)
+    }
+    pub(crate) fn load_with_epsilon(
+        w: &mut Weights<'_>,
+        p: &str,
+        c: usize,
+        epsilon: f32,
+        d: &B::Device,
+    ) -> Result<Self> {
         Ok(Self {
             gamma: w
                 .tensor::<B, 1>(&format!("{p}.weight"), [c], d)?
@@ -77,21 +87,59 @@ impl<B: Backend> InstanceNorm<B> {
             beta: w
                 .tensor::<B, 1>(&format!("{p}.bias"), [c], d)?
                 .reshape([1, c, 1, 1]),
+            epsilon,
         })
     }
     pub fn from_affine(gamma: Tensor<B, 1>, beta: Tensor<B, 1>) -> Self {
+        Self::from_affine_with_epsilon(gamma, beta, 1e-8)
+    }
+    pub fn from_affine_with_epsilon(gamma: Tensor<B, 1>, beta: Tensor<B, 1>, epsilon: f32) -> Self {
         let c = gamma.dims()[0];
         Self {
             gamma: gamma.reshape([1, c, 1, 1]),
             beta: beta.reshape([1, c, 1, 1]),
+            epsilon,
         }
     }
     pub fn forward(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
         let mean = x.clone().mean_dim(2).mean_dim(3);
         let centered = x - mean;
         let variance = centered.clone().powf_scalar(2.0).mean_dim(2).mean_dim(3);
-        centered / variance.add_scalar(1e-8).sqrt() * self.gamma.clone() + self.beta.clone()
+        centered / variance.add_scalar(self.epsilon).sqrt() * self.gamma.clone() + self.beta.clone()
     }
+    /// One reduction axis over H*W. MDX23C uses PyTorch's biased spatial variance, eps=1e-5.
+    pub fn forward_flattened(&self, x: Tensor<B, 4>) -> Tensor<B, 4> {
+        let [b, c, h, w] = x.dims();
+        let x = x.reshape([b, c, h * w]);
+        let centered = x.clone() - x.mean_dim(2);
+        let variance = centered.clone().powf_scalar(2.0).mean_dim(2);
+        (centered / variance.add_scalar(self.epsilon).sqrt()
+            * self.gamma.clone().reshape([1, c, 1])
+            + self.beta.clone().reshape([1, c, 1]))
+        .reshape([b, c, h, w])
+    }
+}
+
+/// ConvTranspose2d with kernel=stride, zero padding, dilation=1 and groups=1.
+/// Each input position produces a disjoint spatial block, so one GEMM plus a shuffle is exact.
+pub fn conv_transpose2d_gemm<B: Backend>(
+    x: Tensor<B, 4>,
+    weight: Tensor<B, 4>,
+) -> Option<Tensor<B, 4>> {
+    let [b, ci, h, w] = x.dims();
+    let [wi, co, kh, kw] = weight.dims();
+    if ci != wi || kh == 0 || kw == 0 {
+        return None;
+    }
+    let rows = x.permute([0, 2, 3, 1]).reshape([b * h * w, ci]);
+    let weight = weight.reshape([ci, co * kh * kw]);
+    let y = crate::fused::linear(&rows, &weight, crate::fused::Epilogue::default())
+        .unwrap_or_else(|| rows.matmul(weight));
+    Some(
+        y.reshape([b, h, w, co, kh, kw])
+            .permute([0, 3, 1, 4, 2, 5])
+            .reshape([b, co, h * kh, w * kw]),
+    )
 }
 
 pub(crate) struct Conv<B: Backend> {

@@ -6,6 +6,7 @@ pub mod fused;
 mod hyperace;
 #[cfg(feature = "onnx")]
 pub mod mdx;
+pub mod mdx23c;
 pub mod network;
 pub mod roformer;
 pub mod spatial;

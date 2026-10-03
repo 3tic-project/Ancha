@@ -6,7 +6,7 @@ chunk → STFT → RoFormer → iSTFT → OLA → residual → WAV / run.json。
 | 位置 | 职责 |
 |---|---|
 | `crates/ancha-audio` | Symphonia 解码、指定片段、Rubato sinc 重采样、RealFFT、分块和 OLA |
-| `crates/ancha-models` | 版本化 manifest、严格权重加载、BS/Mel/HyperACE forward、经典 MDX ONNX 图、转换工具；`fused` 为 CUDA 手写 CubeCL 内核 |
+| `crates/ancha-models` | 版本化 manifest、严格权重加载、BS/Mel/HyperACE / MDX23C forward、经典 MDX ONNX 图、转换工具；`fused` 为 CUDA 手写 CubeCL 内核 |
 | `crates/ancha-kernels` | 原实验包的标量数学参考、online softmax、融合与缓存准入测试 |
 | `src` | 运行时后端选择与各后端默认值（`ancha::backend`）、资源限额、任务取消、CLI、运行报告、性能消融、CUDA 预检与内核缓存、GPU 故障检查 |
 | `examples` | SDK 调用示例：单模型分离；全部模型整曲分离并汇总性能 |
@@ -17,8 +17,9 @@ chunk → STFT → RoFormer → iSTFT → OLA → residual → WAV / run.json。
 
 ## 模型兼容
 
-模型包为 `manifest.json` + `model.safetensors`。schema 1 只接受 FP32、44100 Hz、双声道、
-FFT 2048、每轴单层 Transformer、标准 residual 路径。未知 JSON 字段、键、形状、dtype、
+模型包为 `manifest.json` + `model.safetensors`。schema 1 接受 FP32、44100 Hz、双声道。
+RoFormer 配置要求 FFT 2048、每轴单层 Transformer、标准 residual 路径；`family=mdx23c`
+使用独立严格 Config 和 TFC/TDF adapter，不套用 Transformer 限制。未知 JSON 字段、键、形状、dtype、
 非有限权重、未用张量和 SHA256 不匹配都返回错误。直接依据 PyTorch 键加载，Linear 权重
 从 `[out,in]` 转成 Burn `[in,out]`，没有随机初始化或部分加载。
 
@@ -63,11 +64,15 @@ STFT 使用 periodic Hann、center=true、反射 padding 和未归一化 FFT；i
 显式恢复 chunk 长度，支持非 hop 整数倍尾部。按照模型的 `zero_dc` 在逆变换前清除 DC。
 RealFFT 的计划、频谱、时间和 scratch buffers 在通道、chunk 间复用。
 
-默认采用 manifest 的 chunk 与 overlap divisor，step=`chunk_samples / overlap`。
+RoFormer 默认采用 manifest 的 chunk 与 overlap divisor，step=`chunk_samples / overlap`。
 长输入两侧添加 `chunk-step` 反射 border，再在 OLA 后裁掉。
 尾块超过半块时反射补齐，否则补零。Ancha 的正权重线性淡入淡出避免 overlap=1 时分母为零；
 它不是 MSST 含首尾零权重窗口的逐采样复制。整轨一致性需使用相同 Ancha 分块规则作为参照。
 `--chunk-samples` / `--overlap` 会标记 `custom-context`，不是等质量加速。
+
+MDX23C 使用 `src/mdx23c_runtime.rs` 的 UVR 零上下文与矩形常数除法 OLA。
+`src/spectral.rs` 共用 stereo complex pack / unpack；MDX23C 保留 DC，经典 MDX 继续清零前 3 bins。
+MDX23C 双轨均是网络频谱预测；Mel Karaoke 的单头任务为主唱，其残差标签为 karaoke_mix。
 
 输出为原增益的 float32 WAV；不做每轨归一化和削波。单输出模型的 predicted+residual
 按浮点误差重建原 PCM；这个指标只证明残差语义，不能衡量分离质量。没有干净人声／伴奏真值
@@ -128,6 +133,10 @@ Tensor Core 的 GPU（如 RX 580、Pascal 的 Tesla P4）上只能用直接卷�
 改写为 patch gather + 一次 GEMM；CPU 仍用 Flex 原生卷积。HyperACE SegmModel 的非分组卷积只在 CUDA 上默认走同一 GEMM
 改写（深度可分离层保持 conv2d）。`--conv-strategy gemm|backend` 可做同二进制消融。
 CUDA 的设备预检、按架构与模型分区的 PTX 缓存见 `src/cuda.rs` 与 [CUDA 记录](cuda.md)。
+
+`ancha-models::mdx23c` 完整实现独立 TFC/TDF v3，网络结构、eps=1e-5、频率轴、
+非重叠反卷积 GEMM、TDF 布局与实测边界见 [两个 Derur 模型](derur-adapters.md)。
+共享 InstanceNorm 的 epsilon 在构造时指定；HyperACE 原有 eps=1e-8 不变。
 
 CUDA 上 RoFormer 块与卷积由 `ancha-models::fused` 的手写 CubeCL 内核执行：单遍 attention、带 bias / GELU /
 RoPE / 残差收尾的 GEMM、隐式 GEMM 卷积。入口对 `B: Backend` 泛型，只有 `B` 是 `burn::backend::Cuda` 且形状受支持时

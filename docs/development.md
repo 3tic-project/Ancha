@@ -58,11 +58,14 @@ forward 的一致性门槛，不是干净源 SDR，也不能替代整轨边界�
 PyTorch 2.2.2 是 Intel macOS 的实际验证版本；Linux 上使用同版本的 CPU wheel（`torch==2.2.2+cpu`，
 来自 PyTorch CPU 索引或其镜像），其余依赖按 requirements 安装；报告会记录实际版本。
 
-全部模型可用一条命令按后端复核，结果汇总到 `summary.json`：
+原有 8 个模型可用一条命令按后端复核，结果汇总到 `summary.json`：
 
 ```bash
 ANCHA_BACKENDS="cuda wgpu cpu" bash scripts/parity-matrix.sh
 ```
+
+Mel Karaoke / MDX23C 使用 `scripts/parity-derur.sh`，下载、完整参考、合成测试和串行预热消融
+见 [Derur 适配文档](derur-adapters.md)。原矩阵不把这两个新模型纳入旧 CUDA 已验收集合。
 
 Deux 使用精确导出的 librosa 二值 Mel 索引：
 

@@ -6,7 +6,7 @@
 //! # NVIDIA: build with `--features cuda` and pass `--backend cuda`.
 //! ```
 //!
-//! A directory is a RoFormer package (Leap Xe, Deux, HyperACE v2); a `.onnx` file is one of the
+//! A directory is a RoFormer or MDX23C package; a `.onnx` file is one of the
 //! registered classic MDX models (9482, KARA, KARA 2, Inst HQ 2).
 use ancha::{
     backend::{self, BackendKind},
@@ -23,7 +23,7 @@ use std::{path::PathBuf, sync::atomic::AtomicBool};
 struct Args {
     /// WAV / FLAC / MP3 input.
     input: PathBuf,
-    /// RoFormer package directory or MDX `.onnx` file.
+    /// RoFormer / MDX23C package directory or classic MDX `.onnx` file.
     model: PathBuf,
     /// New output directory for the stems and run.json.
     output: PathBuf,
@@ -62,6 +62,19 @@ fn main() -> Result<()> {
             conv_gemm: kind.mdx_conv_gemm(),
         };
         let r = backend::separate_mdx(kind, args.device, &options, &cancelled, progress)?;
+        (r.model_id, r.stems, r.timings.total_seconds, r.rtf)
+    } else if ancha_models::mdx23c::is_package(&args.model)? {
+        let options = ancha::mdx23c_runtime::Options {
+            input: args.input,
+            model: args.model,
+            output: args.output,
+            decode,
+            chunk_samples: None,
+            overlap: None,
+            conv_gemm: kind.mdx_conv_gemm(),
+            optimized: true,
+        };
+        let r = backend::separate_mdx23c(kind, args.device, &options, &cancelled, progress)?;
         (r.model_id, r.stems, r.timings.total_seconds, r.rtf)
     } else {
         // `None` keeps the native chunk / overlap of the package manifest.

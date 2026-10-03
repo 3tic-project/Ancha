@@ -13,11 +13,14 @@ float32 WAV 输出和可追溯的 run.json。模型与素材均保留在 NO_TRAC
 | Deux | Mel 索引固定导出、双原生输出头已实现；CPU / WGPU 分离及两个输出的 PyTorch 波形比对通过 |
 | HyperACE v2 vocals / instrumental | 完整 SegmModel 已实现；两个 checkpoint 的 WGPU 波形比对通过，vocals 另通过 CPU 比对 |
 | 经典 MDX ONNX | 9482、KARA、KARA 2、Inst HQ 2 原生 Rust 推理；四模型 WGPU 对齐 UVR，KARA 2 / HQ 2 另通过 CPU 比对 |
+| Mel Karaoke aufr33 / viperx | dim384 / 6 层主唱模型；CPU / RX 580 WGPU 的独立 PyTorch 波形比对通过 |
+| MDX23C-8KFFT InstVoc HQ2 | 完整 TFC/TDF v3、两个原生输出头；CPU / RX 580 WGPU 的原生重叠比对通过，WGPU 另通过完整 30 秒 UVR 比对 |
 
-以上 8 个模型（9 个输出）另在 NVIDIA Tesla P4 的 CUDA 后端与 Linux Xeon CPU 上全部通过同一组参考比对。
+前述 Leap、Deux、HyperACE、经典 MDX 共 8 个模型（9 个输出）另在 NVIDIA Tesla P4 的 CUDA 后端与 Linux Xeon CPU 上全部通过同一组参考比对。
 同一 NVIDIA GPU 上的 WGPU（Vulkan）对 Deux 与 HyperACE inst 比对失败（与 CUDA 之前的版本相同），NVIDIA 显卡请用 CUDA。
 
 HyperACE 与经典 MDX 的适配、使用和任务语义见 [新增适配文档](docs/adapters.md)。
+两个 Derur 模型的下载、转换、DSP、速度消融与验收见 [Mel Karaoke / MDX23C](docs/derur-adapters.md)。
 CPU / WGPU 推理速度审计、算子折叠与当前实测见 [速度优化记录](docs/speed-optimization.md)；
 CUDA 后端的适配、优化、profile 与 Linux 三后端实测见 [CUDA 记录](docs/cuda.md)；
 上一轮速度见 [适配性能记录](docs/adapters-performance.md)。目前仍未完成 Leap inst 独立验收。
@@ -43,7 +46,8 @@ target/release/ancha separate 'NO_TRACK/test_file/ReoNa - Amore.mp3' \
 
 输出目录必须尚不存在。完成后包含 `vocals.wav`、`instrumental.wav`、`run.json`。
 默认 FP32、44.1 kHz 双声道；输入单声道会复制成双声道。单头模型的另一轨标为 residual，
-Deux 两轨都标为 predicted。运行报告记录有效参数、PCM/权重摘要、各阶段耗时和 RTF。
+Deux / MDX23C 两轨都标为 predicted；Mel Karaoke 输出 lead_vocals 与残差 karaoke_mix。
+运行报告记录有效参数、PCM/权重摘要、各阶段耗时和 RTF。
 
 Linux / Windows 不启用 Apple Accelerate：
 
@@ -86,15 +90,15 @@ CUDA 另按 GPU 架构与模型缓存 NVRTC 编译结果。GPU 设备线程上�
 `examples/` 演示 SDK 调用方式，后端由 `ancha::backend` 在运行时选择：
 
 ```bash
-# 单个模型：目录为 RoFormer 包（Leap / Deux / HyperACE），.onnx 为经典 MDX。
+# 单个模型：目录为 RoFormer / MDX23C 包，.onnx 为经典 MDX。
 cargo run --release --example separate -- 'NO_TRACK/test_file/ReoNa - Amore.mp3' \
   NO_TRACK/models/deux NO_TRACK/runs/example-deux --backend wgpu --start 30 --duration 30
 
-# 全部 8 个模型完整分离一首歌并记录性能（NVIDIA 加 --features cuda）。
+# 全部 10 个模型完整分离一首歌并记录性能（NVIDIA 加 --features cuda）。
 cargo run --release --features cuda --example separate_all -- --backend cuda
 ```
 
-`separate_all` 在一个进程里串行运行 Leap、Deux、HyperACE voc / inst 与四个 MDX，各自使用原生上下文和
+`separate_all` 在一个进程里串行运行 Leap、Deux、Mel Karaoke、MDX23C、HyperACE voc / inst 与四个 MDX，各自使用原生上下文和
 后端默认设置。输出写到 `NO_TRACK/runs/examples/separate-all-<后端>-<时间>/<模型>/`，每个模型结束后更新
 `summary.json`（主机与设备、各阶段耗时、首块 / 稳态每块耗时、RTF、各轨峰值与 RMS、CUDA 显存占用）；
 `--only`、`--start`、`--duration` 可缩小范围。本机 CUDA 全曲结果见 [CUDA 记录](docs/cuda.md#整首歌全模型示例)。

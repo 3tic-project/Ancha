@@ -100,6 +100,20 @@ fn manifests_reject_unknown_schema_holes_duplicate_stems_and_invalid_digests() {
     let mut bad = config.clone();
     bad.stems = vec!["vocals".into(), "vocals".into()];
     assert!(bad.validate().is_err());
+    let karaoke = ModelConfig::mel_karaoke();
+    karaoke.validate().unwrap();
+    assert_eq!(
+        (karaoke.dim, karaoke.depth, karaoke.bands.len()),
+        (384, 6, 60)
+    );
+    assert_eq!((karaoke.chunk_samples, karaoke.overlap), (352800, 4));
+    assert_eq!(karaoke.stems, ["lead_vocals"]);
+    let mut bad = karaoke.clone();
+    bad.stems.push("instrumental".into());
+    assert!(bad.validate().is_err());
+    let mut bad = config.clone();
+    bad.stems = vec!["lead_vocals".into()];
+    assert!(bad.validate().is_err());
     let mut m = Manifest {
         schema_version: 1,
         model_id: "leap-xe-voc".into(),

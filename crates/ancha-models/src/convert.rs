@@ -11,6 +11,7 @@ use safetensors::{
     serialize_to_file,
     tensor::{Dtype, TensorView},
 };
+use serde::Serialize;
 use std::{collections::HashMap, path::Path};
 
 pub fn convert_checkpoint(
@@ -22,6 +23,46 @@ pub fn convert_checkpoint(
     license: String,
 ) -> Result<Manifest> {
     config.validate()?;
+    let revision = if config.family == crate::config::Family::HyperaceV2 {
+        "HyperACE/5b1f8283125d5e4a3614d0e3635a636e09c84059;bs_roformer.py=48571e20d70ea8f245cffc6afbfa279f62042e7ba16fbaa3fe43dd2cbc25e1db"
+    } else {
+        "MSST/84b1eac0887756b4f1a9d7a1ff49105939749ed2"
+    };
+    convert_package(
+        source, output, model_id, config, source_url, license, revision,
+    )
+}
+
+pub fn convert_mdx23c_checkpoint(source: &Path, output: &Path) -> Result<crate::mdx23c::Package> {
+    let config = crate::mdx23c::Config::inst_voc_hq2();
+    config.validate()?;
+    ensure!(
+        sha256_file(source)? == crate::mdx23c::CHECKPOINT_SHA256,
+        "MDX23C HQ2 preset checkpoint checksum mismatch"
+    );
+    convert_package(
+        source,
+        output,
+        "mdx23c-inst-voc-hq2",
+        config,
+        format!(
+            "https://huggingface.co/Derur/UVR-models/tree/{}/MDX23C-8KFFT-InstVoc_HQ_2",
+            crate::mdx23c::HUB_REVISION
+        ),
+        "not specified by the checkpoint mirror".into(),
+        crate::mdx23c::REFERENCE_REVISION,
+    )
+}
+
+fn convert_package<C: Serialize>(
+    source: &Path,
+    output: &Path,
+    model_id: &str,
+    config: C,
+    source_url: String,
+    license: String,
+    revision: &str,
+) -> Result<Manifest<C>> {
     ensure!(
         !output.exists(),
         "model package already exists: {}",
@@ -67,18 +108,14 @@ pub fn convert_checkpoint(
         let manifest = Manifest {
             schema_version: 1,
             model_id: model_id.into(),
-            config: config.clone(),
+            config,
             weights_sha256: sha256_file(&weights)?,
             checkpoint_sha256: sha256_file(source)?,
             source_url,
             weight_license: license,
-            forward_revision: if config.family == crate::config::Family::HyperaceV2 {
-                "HyperACE/5b1f8283125d5e4a3614d0e3635a636e09c84059;bs_roformer.py=48571e20d70ea8f245cffc6afbfa279f62042e7ba16fbaa3fe43dd2cbc25e1db".into()
-            } else {
-                "MSST/84b1eac0887756b4f1a9d7a1ff49105939749ed2".into()
-            },
+            forward_revision: revision.into(),
         };
-        manifest.validate()?;
+        manifest.validate_metadata()?;
         std::fs::write(
             stage.join("manifest.json"),
             serde_json::to_vec_pretty(&manifest)?,

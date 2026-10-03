@@ -72,12 +72,17 @@ impl ModelConfig {
                 && self
                     .stems
                     .iter()
-                    .all(|s| s == "vocals" || s == "instrumental"),
+                    .all(|s| s == "vocals" || s == "instrumental" || s == "lead_vocals"),
             "invalid stem labels"
         );
         ensure!(
             self.stems.len() == 1 || self.stems[0] != self.stems[1],
             "duplicate stems"
+        );
+        ensure!(
+            !self.stems.iter().any(|s| s == "lead_vocals")
+                || (self.family == Family::MelBandRoformer && self.stems.len() == 1),
+            "lead vocals require a single-head Mel karaoke model"
         );
         ensure!((2..=256).contains(&self.bands.len()), "invalid band count");
         let bins = self.n_fft / 2 + 1;
@@ -159,6 +164,12 @@ impl ModelConfig {
         }
     }
 
+    /// Fixed librosa band membership and inference context from the published karaoke YAML.
+    pub fn mel_karaoke() -> Self {
+        serde_json::from_str(include_str!("../../../configs/mel-karaoke.json"))
+            .expect("bundled karaoke config")
+    }
+
     pub fn hyperace_v2(instrumental: bool) -> Self {
         let mut c = Self::leap_xe(instrumental);
         c.family = Family::HyperaceV2;
@@ -185,7 +196,7 @@ impl ModelConfig {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Manifest {
+pub struct Manifest<C = ModelConfig> {
     pub schema_version: u32,
     pub model_id: String,
     pub weights_sha256: String,
@@ -193,11 +204,11 @@ pub struct Manifest {
     pub source_url: String,
     pub forward_revision: String,
     pub weight_license: String,
-    pub config: ModelConfig,
+    pub config: C,
 }
 
-impl Manifest {
-    pub fn validate(&self) -> Result<()> {
+impl<C> Manifest<C> {
+    pub fn validate_metadata(&self) -> Result<()> {
         ensure!(self.schema_version == 1, "unsupported model package schema");
         ensure!(!self.model_id.is_empty(), "model ID is empty");
         for digest in [&self.weights_sha256, &self.checkpoint_sha256] {
@@ -206,6 +217,12 @@ impl Manifest {
                 "invalid SHA256"
             );
         }
+        Ok(())
+    }
+}
+impl Manifest<ModelConfig> {
+    pub fn validate(&self) -> Result<()> {
+        self.validate_metadata()?;
         self.config.validate()
     }
 }

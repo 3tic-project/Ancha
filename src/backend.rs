@@ -89,6 +89,58 @@ pub fn cache_scope(model: &std::path::Path) -> String {
         .into_owned()
 }
 
+/// Native MDX23C two-head package; CPU / WGPU / CUDA share the same DSP and network.
+pub fn separate_mdx23c(
+    kind: BackendKind,
+    device: usize,
+    options: &crate::mdx23c_runtime::Options,
+    cancelled: &AtomicBool,
+    progress: impl FnMut(usize, usize),
+) -> Result<crate::mdx23c_runtime::Report> {
+    use crate::mdx23c_runtime::separate as run;
+    let label = kind.label();
+    match kind {
+        BackendKind::Cpu => run::<Flex>(options, &Default::default(), label, cancelled, progress),
+        BackendKind::Ndarray => {
+            run::<NdArray<f32>>(options, &Default::default(), label, cancelled, progress)
+        }
+        BackendKind::Wgpu => {
+            #[cfg(feature = "wgpu")]
+            {
+                run::<burn::backend::Wgpu>(
+                    options,
+                    &burn::backend::wgpu::WgpuDevice::DiscreteGpu(device),
+                    label,
+                    cancelled,
+                    progress,
+                )
+            }
+            #[cfg(not(feature = "wgpu"))]
+            {
+                let _ = device;
+                Err(not_built(kind))
+            }
+        }
+        BackendKind::Cuda => {
+            #[cfg(feature = "cuda")]
+            {
+                run::<burn::backend::Cuda>(
+                    options,
+                    &cuda_device(device, &cache_scope(&options.model))?,
+                    label,
+                    cancelled,
+                    progress,
+                )
+            }
+            #[cfg(not(feature = "cuda"))]
+            {
+                let _ = device;
+                Err(not_built(kind))
+            }
+        }
+    }
+}
+
 /// Separate with a RoFormer package. `device` is the GPU ordinal and is ignored on CPU.
 pub fn separate(
     kind: BackendKind,

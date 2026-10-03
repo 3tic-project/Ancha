@@ -1,0 +1,418 @@
+{
+  "date": "2026-10-03",
+  "scope": "real checkpoints, independent FP32 waveform parity; no clean stems, no SDR or dataset quality evaluation",
+  "host": {
+    "os": "macOS-15.7.7-x86_64-i386-64bit",
+    "cpu": "12th Gen Intel(R) Core(TM) i5-12400",
+    "memory_bytes": 68719476736,
+    "gpu": "AMD Radeon RX 580 8 GB, Metal 2",
+    "rust": "1.92.0",
+    "burn": "0.21.0",
+    "cubecl": "0.10.0"
+  },
+  "hub_revision": "f3bb9a312519f4404dde996ef1054ec30353c46f",
+  "models": {
+    "mel-karaoke-aufr33-viperx": {
+      "tensors": 684,
+      "parameters": 228203172,
+      "bytes": 912885624,
+      "checkpoint_sha256": "1de20d459332fe8869aeb01327a31df0032262706e1365114e852dc271779813",
+      "weights_sha256": "84a13ac5eb12ea9039868df408c4aa07939e2ce7974e47dd7428876b89d53c53",
+      "source_url": "https://huggingface.co/Derur/UVR-models/tree/f3bb9a312519f4404dde996ef1054ec30353c46f/mel_band_roformer_karaoke_aufr33_viperx_sdr_10",
+      "forward_revision": "MSST/84b1eac0887756b4f1a9d7a1ff49105939749ed2"
+    },
+    "mdx23c-inst-voc-hq2": {
+      "tensors": 319,
+      "parameters": 111990272,
+      "bytes": 447998288,
+      "checkpoint_sha256": "7d960d8e40a458120412c1bd807e013d2dbca7b959cc9da2bbcb0eb203d1daea",
+      "weights_sha256": "92c4ff2753768d19b9eaad5650dc3035927c8130ed11ea7e7bda4c9a97fdd789",
+      "source_url": "https://huggingface.co/Derur/UVR-models/tree/f3bb9a312519f4404dde996ef1054ec30353c46f/MDX23C-8KFFT-InstVoc_HQ_2",
+      "forward_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1;lib_v5/tfc_tdf_v3.py"
+    }
+  },
+  "gates": {
+    "max_abs_less_than": 0.001,
+    "waveform_snr_db_greater_than": 50
+  },
+  "parity": [
+    {
+      "case": "mel-cpu-single-3s",
+      "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+      "source_revision": "MSST/84b1eac0887756b4f1a9d7a1ff49105939749ed2",
+      "torch": "2.2.2",
+      "numpy": "1.26.4",
+      "platform": "macOS-15.7.7-x86_64-i386-64bit",
+      "threads": 6,
+      "samples": 132300,
+      "sample_rate": 44100,
+      "model_id": "mel-karaoke-aufr33-viperx",
+      "pytorch_forward_seconds": 4.341236135005602,
+      "comparisons": [
+        {
+          "stem": "lead_vocals",
+          "max_abs": 4.544854164123535e-07,
+          "mean_abs": 4.134720156740591e-08,
+          "waveform_snr_db": 127.51416191169525,
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "mel-wgpu-single-3s",
+      "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+      "source_revision": "MSST/84b1eac0887756b4f1a9d7a1ff49105939749ed2",
+      "torch": "2.2.2",
+      "numpy": "1.26.4",
+      "platform": "macOS-15.7.7-x86_64-i386-64bit",
+      "threads": 6,
+      "samples": 132300,
+      "sample_rate": 44100,
+      "model_id": "mel-karaoke-aufr33-viperx",
+      "pytorch_forward_seconds": 4.409798687993316,
+      "comparisons": [
+        {
+          "stem": "lead_vocals",
+          "max_abs": 0.00045000016689300537,
+          "mean_abs": 2.6253052877759027e-05,
+          "waveform_snr_db": 69.32130924880906,
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "mdx23c-cpu-native-3s",
+      "scope": "pinned UVR MDXC demix + TFC/TDF v3, stereo two native heads; no denoise, pitch shift or postprocessing; waveform consistency, not SDR",
+      "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+      "reference_identity": {
+        "config": {
+          "family": "mdx23c",
+          "sample_rate": 44100,
+          "n_fft": 8192,
+          "hop": 1024,
+          "bins": 4096,
+          "frames": 256,
+          "overlap": 8,
+          "subbands": 4,
+          "channels": 128,
+          "growth": 128,
+          "scales": 5,
+          "blocks_per_scale": 2,
+          "bottleneck_factor": 4,
+          "scale": [
+            2,
+            2
+          ],
+          "stems": [
+            "vocals",
+            "instrumental"
+          ]
+        },
+        "checkpoint_sha256": "7d960d8e40a458120412c1bd807e013d2dbca7b959cc9da2bbcb0eb203d1daea",
+        "input_pcm_sha256": "f05dcb894bbcea0d2f5e71381f4a50d4b9c9bbb78a5a2e57823d80a54ebc53a0",
+        "tfc_source_sha256": "12aa778119eb96dd8549df6559122bc91e92352ce8f12f51259ad72a7b91111b",
+        "demix_source_sha256": "d3d1fd3288491895415a8487bb56d0cf75914e0080d1f1cf37aab145c5c576e8",
+        "torch": "2.2.2",
+        "threads": 6
+      },
+      "reference_cache_key": "4951e6985ccf8dabed24c54e7c75b3aad7745b5afbba94c0c6618c6e9aa5d9f1",
+      "reference_cache_used": true,
+      "backend": "cpu-flex",
+      "profile": "native-context",
+      "samples": 132300,
+      "torch": "2.2.2",
+      "numpy": "1.26.4",
+      "reference_seconds": 127.17767231201287,
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 7.748603820800781e-07,
+          "waveform_snr_db": 130.31016888006337,
+          "status": "passed"
+        },
+        {
+          "stem": "instrumental",
+          "max_abs": 8.046627044677734e-07,
+          "waveform_snr_db": 129.18099890757784,
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "mdx23c-wgpu-native-3s",
+      "scope": "pinned UVR MDXC demix + TFC/TDF v3, stereo two native heads; no denoise, pitch shift or postprocessing; waveform consistency, not SDR",
+      "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+      "reference_identity": {
+        "config": {
+          "family": "mdx23c",
+          "sample_rate": 44100,
+          "n_fft": 8192,
+          "hop": 1024,
+          "bins": 4096,
+          "frames": 256,
+          "overlap": 8,
+          "subbands": 4,
+          "channels": 128,
+          "growth": 128,
+          "scales": 5,
+          "blocks_per_scale": 2,
+          "bottleneck_factor": 4,
+          "scale": [
+            2,
+            2
+          ],
+          "stems": [
+            "vocals",
+            "instrumental"
+          ]
+        },
+        "checkpoint_sha256": "7d960d8e40a458120412c1bd807e013d2dbca7b959cc9da2bbcb0eb203d1daea",
+        "input_pcm_sha256": "f05dcb894bbcea0d2f5e71381f4a50d4b9c9bbb78a5a2e57823d80a54ebc53a0",
+        "tfc_source_sha256": "12aa778119eb96dd8549df6559122bc91e92352ce8f12f51259ad72a7b91111b",
+        "demix_source_sha256": "d3d1fd3288491895415a8487bb56d0cf75914e0080d1f1cf37aab145c5c576e8",
+        "torch": "2.2.2",
+        "threads": 6
+      },
+      "reference_cache_key": "4951e6985ccf8dabed24c54e7c75b3aad7745b5afbba94c0c6618c6e9aa5d9f1",
+      "reference_cache_used": true,
+      "backend": "wgpu",
+      "profile": "native-context",
+      "samples": 132300,
+      "torch": "2.2.2",
+      "numpy": "1.26.4",
+      "reference_seconds": 127.17767231201287,
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 2.384185791015625e-07,
+          "waveform_snr_db": 137.86943219421724,
+          "status": "passed"
+        },
+        {
+          "stem": "instrumental",
+          "max_abs": 3.5762786865234375e-07,
+          "waveform_snr_db": 137.61557176848947,
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "mdx23c-wgpu-native-30s",
+      "scope": "pinned UVR MDXC demix + TFC/TDF v3, stereo two native heads; no denoise, pitch shift or postprocessing; waveform consistency, not SDR",
+      "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+      "reference_identity": {
+        "config": {
+          "family": "mdx23c",
+          "sample_rate": 44100,
+          "n_fft": 8192,
+          "hop": 1024,
+          "bins": 4096,
+          "frames": 256,
+          "overlap": 8,
+          "subbands": 4,
+          "channels": 128,
+          "growth": 128,
+          "scales": 5,
+          "blocks_per_scale": 2,
+          "bottleneck_factor": 4,
+          "scale": [
+            2,
+            2
+          ],
+          "stems": [
+            "vocals",
+            "instrumental"
+          ]
+        },
+        "checkpoint_sha256": "7d960d8e40a458120412c1bd807e013d2dbca7b959cc9da2bbcb0eb203d1daea",
+        "input_pcm_sha256": "e1168f5feb259561d9853729e564c2f5475313563bd3802100d56fa08fa46f05",
+        "tfc_source_sha256": "12aa778119eb96dd8549df6559122bc91e92352ce8f12f51259ad72a7b91111b",
+        "demix_source_sha256": "d3d1fd3288491895415a8487bb56d0cf75914e0080d1f1cf37aab145c5c576e8",
+        "torch": "2.2.2",
+        "threads": 6
+      },
+      "reference_cache_key": "7bb3b915eab949651fcef11a865eec679468253a8cce02ab09985d9b650bd5d5",
+      "reference_cache_used": true,
+      "backend": "wgpu",
+      "profile": "native-context",
+      "samples": 1323000,
+      "torch": "2.2.2",
+      "numpy": "1.26.4",
+      "reference_seconds": 336.45449166600883,
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 2.980232238769531e-07,
+          "waveform_snr_db": 137.9500367902172,
+          "status": "passed"
+        },
+        {
+          "stem": "instrumental",
+          "max_abs": 3.5762786865234375e-07,
+          "waveform_snr_db": 138.96409310061193,
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "case": "mdx23c-wgpu-worst-window",
+      "scope": "pinned UVR MDXC demix + TFC/TDF v3, stereo two native heads; no denoise, pitch shift or postprocessing; waveform consistency, not SDR",
+      "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+      "reference_identity": {
+        "config": {
+          "family": "mdx23c",
+          "sample_rate": 44100,
+          "n_fft": 8192,
+          "hop": 1024,
+          "bins": 4096,
+          "frames": 256,
+          "overlap": 1,
+          "subbands": 4,
+          "channels": 128,
+          "growth": 128,
+          "scales": 5,
+          "blocks_per_scale": 2,
+          "bottleneck_factor": 4,
+          "scale": [
+            2,
+            2
+          ],
+          "stems": [
+            "vocals",
+            "instrumental"
+          ]
+        },
+        "checkpoint_sha256": "7d960d8e40a458120412c1bd807e013d2dbca7b959cc9da2bbcb0eb203d1daea",
+        "input_pcm_sha256": "6472e8877fe0f2b4d90e0b0bd53960171b36ceaede9c739d78e07fd949edae60",
+        "tfc_source_sha256": "12aa778119eb96dd8549df6559122bc91e92352ce8f12f51259ad72a7b91111b",
+        "demix_source_sha256": "d3d1fd3288491895415a8487bb56d0cf75914e0080d1f1cf37aab145c5c576e8",
+        "torch": "2.2.2",
+        "threads": 6
+      },
+      "reference_cache_key": "9694f8c2f67886722a42f545817c307cc86945c422f1d5480b4720abbf0c699f",
+      "reference_cache_used": true,
+      "backend": "wgpu",
+      "profile": "custom-context",
+      "samples": 261120,
+      "torch": "2.2.2",
+      "numpy": "1.26.4",
+      "reference_seconds": 23.150878482992994,
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 6.854534149169922e-07,
+          "waveform_snr_db": 132.82021314316535,
+          "status": "passed"
+        },
+        {
+          "stem": "instrumental",
+          "max_abs": 7.152557373046875e-07,
+          "waveform_snr_db": 133.34274969796033,
+          "status": "passed"
+        }
+      ],
+      "status": "passed"
+    }
+  ],
+  "mel_native_output_integrity": [
+    {
+      "run": "mel-wgpu-native-3s",
+      "samples": 132300,
+      "sample_rate": 44100,
+      "channels": 2,
+      "predicted_residual_max_abs": 5.960464477539063e-08,
+      "status": "passed",
+      "scope": "output shape/finite and residual reconstruction; not independent chunked PyTorch parity or SDR"
+    },
+    {
+      "run": "mel-wgpu-native-30s",
+      "samples": 1323000,
+      "sample_rate": 44100,
+      "channels": 2,
+      "predicted_residual_max_abs": 5.960464477539063e-08,
+      "status": "passed",
+      "scope": "output shape/finite and residual reconstruction; not independent chunked PyTorch parity or SDR"
+    }
+  ],
+  "superseded_failures": [
+    {
+      "case": "mdx23c-wgpu-native-30s",
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 0.0010404586791992188,
+          "waveform_snr_db": 73.85317131307698,
+          "status": "failed"
+        },
+        {
+          "stem": "instrumental",
+          "max_abs": 0.0010412931442260742,
+          "waveform_snr_db": 75.50366956837993,
+          "status": "failed"
+        }
+      ],
+      "status": "superseded-failure"
+    },
+    {
+      "case": "worst35-optimized",
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 0.0019760876893997192,
+          "waveform_snr_db": 70.29202915386551,
+          "status": "failed"
+        },
+        {
+          "stem": "instrumental",
+          "max_abs": 0.0019785910844802856,
+          "waveform_snr_db": 71.34623669880975,
+          "status": "failed"
+        }
+      ],
+      "status": "superseded-failure"
+    },
+    {
+      "case": "mdx23c-wgpu-corrected-worst35",
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 0.001976490020751953,
+          "waveform_snr_db": 70.29127892040276,
+          "status": "failed"
+        },
+        {
+          "stem": "instrumental",
+          "max_abs": 0.001978948712348938,
+          "waveform_snr_db": 71.3453772543325,
+          "status": "failed"
+        }
+      ],
+      "status": "superseded-failure"
+    }
+  ],
+  "correction": "Generic flattened TDF caused waveform errors on RX 580. Restoring only spatial-axis norm did not fix it. CPU/WGPU now use original batched Linear and spatial-axis norm. Only supported CUDA custom TDF GEMM shapes use the CUDA optimization; otherwise fall back to batched Linear.",
+  "validation_binaries": {
+    "mel_initial": "initial adapter release build; no digest captured",
+    "mdx23c_final_30s": "bd7b4079c4a848b730b3832a4b4da417958757c034790258937840436c51d64e",
+    "delivery": "4d51a9361d57d6acc9410c74dd63637d244c90dfd53d3870a25ddb10d9627895"
+  },
+  "checks": {
+    "synthetic_tests": 38,
+    "release_cli_and_sdk_examples": "passed",
+    "minimal_cpu_all_targets": "passed",
+    "cuda_all_target_clippy": "passed",
+    "cuda_hardware": "not executed: no NVIDIA device",
+    "golden_regeneration_max_abs": 2.7284841053187847e-11
+  },
+  "limitations": [
+    "Mel PyTorch parity uses one 3-second custom-context chunk. Its native 30-second run was checked for finite stereo length and residual reconstruction, not independent chunked PyTorch parity.",
+    "MDX23C native 3-second runs and complete 30-second WGPU run use pinned UVR demix padding and rectangular OLA.",
+    "CUDA checks are compile-only for these two new models; old eight-model P4 results do not apply."
+  ],
+  "status": "passed for the stated CPU/WGPU scopes"
+}

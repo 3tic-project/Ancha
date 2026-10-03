@@ -27,12 +27,20 @@ use std::{
 };
 
 /// Package directory or ONNX file under `--models`, and what it predicts.
-const MODELS: [(&str, &str); 8] = [
+const MODELS: [(&str, &str); 10] = [
     (
         "leap-xe-voc",
         "BS-RoFormer Leap Xe: vocals, residual instrumental",
     ),
     ("deux", "Mel-Band RoFormer Deux: vocals and instrumental"),
+    (
+        "mel-karaoke-aufr33-viperx",
+        "Mel karaoke: lead vocals, residual karaoke mix",
+    ),
+    (
+        "mdx23c-inst-voc-hq2",
+        "MDX23C HQ2: native vocals and instrumental",
+    ),
     (
         "hyperace-v2-voc",
         "HyperACE v2: vocals, residual instrumental",
@@ -225,6 +233,20 @@ fn run(
         };
         let report = backend::separate_mdx(kind, device, &options, cancelled, progress)?;
         Ok(serde_json::to_value(report)?)
+    } else if ancha_models::mdx23c::is_package(model)? {
+        let options = ancha::mdx23c_runtime::Options {
+            input: input.into(),
+            model: model.into(),
+            output: output.into(),
+            decode,
+            chunk_samples: None,
+            overlap: None,
+            conv_gemm: kind.mdx_conv_gemm(),
+            optimized: true,
+        };
+        Ok(serde_json::to_value(backend::separate_mdx23c(
+            kind, device, &options, cancelled, progress,
+        )?)?)
     } else {
         let attention = kind.attention_plan();
         let options = SeparateOptions {
@@ -272,7 +294,7 @@ fn record(
         "description": description,
         "status": "ok",
         "model_id": report["model_id"],
-        "family": if mdx { json!("classic-mdx") } else { config["family"].clone() },
+        "family": if config.get("family").is_some() { config["family"].clone() } else { json!("classic-mdx") },
         "profile": report["profile"],
         "audio_seconds": audio,
         "chunks": report["chunks"],
