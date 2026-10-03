@@ -23,7 +23,7 @@ macOS 可使用 `cargo build --release --locked --features convert,accelerate`�
 
 ## 快速开始
 
-先把自己的歌曲放到 `audio/`，下面以 `audio/ReoNa - Amore.mp3` 为例。模型和歌曲由用户准备，不随源码分发。
+先把自己的歌曲放到 `audio/`，下面以 `audio/ReoNa - Amore.mp3` 为例。模型权重见[模型权重](#模型权重)，歌曲由用户自己准备，两者都不随源码分发。
 每条命令把结果写到 `outputs/` 下对应的目录，再跑一次会换上新结果。只要试听 30 秒，在命令末尾加上 `--start 30 --duration 30`。
 
 ```bash
@@ -78,6 +78,34 @@ target/release/ancha separate 'audio/ReoNa - Amore.mp3' \
 | `UVR-MDX-NET-Inst_HQ_2.onnx` | `instrument.wav`，残差 `vocals.wav` |
 
 每个模型都只写出这两个文件名。主唱、全部人声写到 `vocals.wav`，伴奏和卡拉 OK 伴唱写到 `instrument.wav`。残差是原混音减去预测。KARA 2 的预测是伴唱，所以 `instrument.wav` 是模型输出，`vocals.wav` 是残差。
+
+## 模型权重
+
+权重不随源码分发，按模型发布在 [Releases](https://github.com/3tic-project/Ancha/releases) 的 `weights/` 标签下。目录型模型把 `manifest.json` 和 `model.safetensors` 放进 `models/<名字>/`，经典 MDX 的 `.onnx` 直接放进 `models/`；每个 release 都带校验文件（目录型为 `SHA256SUMS`，经典 MDX 为 `<文件名>.onnx.sha256`）和该模型的用法、来源与许可说明。
+
+| 模型 | 权重 |
+|---|---|
+| `leap-xe-voc` | [weights/leap-xe-voc](https://github.com/3tic-project/Ancha/releases/tag/weights/leap-xe-voc) |
+| `deux` | [weights/deux](https://github.com/3tic-project/Ancha/releases/tag/weights/deux) |
+| `hyperace-v2-voc` | [weights/hyperace-v2-voc](https://github.com/3tic-project/Ancha/releases/tag/weights/hyperace-v2-voc) |
+| `hyperace-v2-inst` | [weights/hyperace-v2-inst](https://github.com/3tic-project/Ancha/releases/tag/weights/hyperace-v2-inst) |
+| `mel-karaoke-aufr33-viperx` | [weights/mel-karaoke-aufr33-viperx](https://github.com/3tic-project/Ancha/releases/tag/weights/mel-karaoke-aufr33-viperx) |
+| `mdx23c-inst-voc-hq2` | [weights/mdx23c-inst-voc-hq2](https://github.com/3tic-project/Ancha/releases/tag/weights/mdx23c-inst-voc-hq2) |
+| `UVR_MDXNET_9482.onnx` | [weights/UVR_MDXNET_9482](https://github.com/3tic-project/Ancha/releases/tag/weights/UVR_MDXNET_9482) |
+| `UVR_MDXNET_KARA.onnx` | [weights/UVR_MDXNET_KARA](https://github.com/3tic-project/Ancha/releases/tag/weights/UVR_MDXNET_KARA) |
+| `UVR_MDXNET_KARA_2.onnx` | [weights/UVR_MDXNET_KARA_2](https://github.com/3tic-project/Ancha/releases/tag/weights/UVR_MDXNET_KARA_2) |
+| `UVR-MDX-NET-Inst_HQ_2.onnx` | [weights/UVR-MDX-NET-Inst_HQ_2](https://github.com/3tic-project/Ancha/releases/tag/weights/UVR-MDX-NET-Inst_HQ_2) |
+
+以 Leap Xe 为例，下载并校验：
+
+```bash
+mkdir -p models/leap-xe-voc && cd models/leap-xe-voc
+base=https://github.com/3tic-project/Ancha/releases/download/weights/leap-xe-voc
+curl -fLO "$base/SHA256SUMS" && curl -fLO "$base/manifest.json" && curl -fLO "$base/model.safetensors"
+shasum -a 256 -c SHA256SUMS
+```
+
+权重来源与许可总见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## 更多文档
 
