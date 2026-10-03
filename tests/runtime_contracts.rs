@@ -63,7 +63,7 @@ fn synthetic_model_runs_full_pipeline_both_families_and_preserves_native_stems()
             report.residual_reconstruction_max_abs.is_some(),
             family == Family::BsRoformer
         );
-        for name in ["vocals", "instrumental"] {
+        for name in ["vocals", "instrument"] {
             let audio = decode(
                 &output.join(format!("{name}.wav")),
                 DecodeOptions::default(),
@@ -90,7 +90,7 @@ fn synthetic_model_runs_full_pipeline_both_families_and_preserves_native_stems()
             |_, _| {},
         )
         .unwrap();
-        for name in ["vocals", "instrumental"] {
+        for name in ["vocals", "instrument"] {
             let flat = decode(
                 &output.join(format!("{name}.wav")),
                 DecodeOptions::default(),
@@ -138,7 +138,7 @@ fn synthetic_model_runs_full_pipeline_both_families_and_preserves_native_stems()
             (flex.attention_kernel.as_str(), flex.gemm_kernel.as_str()),
             ("tiled", "burn")
         );
-        for name in ["vocals", "instrumental"] {
+        for name in ["vocals", "instrument"] {
             let reference = decode(
                 &output.join(format!("{name}.wav")),
                 DecodeOptions::default(),

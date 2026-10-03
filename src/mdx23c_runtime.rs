@@ -265,6 +265,7 @@ pub fn separate<B: Backend>(
             sample_rate: config.sample_rate,
             planes,
         };
+        let name = crate::report::output_stem(name);
         ancha_audio::write_wav(&stage.path().join(format!("{name}.wav")), &audio)?;
         let peak = audio
             .planes
@@ -281,7 +282,7 @@ pub fn separate<B: Backend>(
             / (2 * audio.samples()) as f64)
             .sqrt();
         stems.push(StemReport {
-            name: name.clone(),
+            name: name.to_string(),
             origin: "predicted".into(),
             peak,
             rms,

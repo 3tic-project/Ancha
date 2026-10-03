@@ -95,7 +95,7 @@ fn cuda_separation_matches_flex_cpu_for_both_families() {
             separate::<Cuda>(&gpu, &device(), "cuda", &AtomicBool::new(false), |_, _| {}).unwrap();
         assert_eq!(report.backend, "cuda");
         assert!(report.build_features.contains(&"cuda".to_string()));
-        for name in ["vocals", "instrumental"] {
+        for name in ["vocals", "instrument"] {
             let file = format!("{name}.wav");
             let max = max_difference(&cpu.output.join(&file), &gpu.output.join(&file));
             assert!(max < 1e-5, "CUDA differs from Flex on {name}: {max}");
@@ -384,7 +384,7 @@ fn cuda_custom_kernels_match_flex_cpu_on_a_full_model() {
         assert_eq!(report.attention_kernel, "fused");
         assert_eq!(report.gemm_kernel, "custom");
         assert_eq!(report.estimated_time_attention_score_bytes, 0);
-        for name in ["vocals", "instrumental"] {
+        for name in ["vocals", "instrument"] {
             let file = format!("{name}.wav");
             let max = max_difference(&cpu.output.join(&file), &gpu.output.join(&file));
             assert!(max < 1e-5, "CUDA kernels differ from Flex on {name}: {max}");

@@ -18,6 +18,14 @@ import soundfile as sf
 import torch
 
 
+def output_stem(name):
+    if name in ("vocals", "lead_vocals", "all_vocals"):
+        return "vocals"
+    if name in ("instrumental", "instrument", "karaoke_mix"):
+        return "instrument"
+    return name
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--uvr-source", type=Path, required=True)
@@ -108,7 +116,7 @@ def main():
                                                                 reference_seconds=elapsed), indent=2) + "\n")
     comparisons = []
     for stem in c["stems"]:
-        actual, rate = sf.read(a.rust_output / f"{stem}.wav", dtype="float32", always_2d=True)
+        actual, rate = sf.read(a.rust_output / f"{output_stem(stem)}.wav", dtype="float32", always_2d=True)
         wave = expected[stem]
         assert rate == sr and actual.shape == wave.shape and np.isfinite(actual).all() and np.isfinite(wave).all()
         error = actual.astype(np.float64) - wave.astype(np.float64)

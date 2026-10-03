@@ -254,6 +254,7 @@ pub fn separate<B: Backend>(
     let timer = Instant::now();
     let mut reports = Vec::new();
     for (name, origin, audio) in &stems {
+        let name = crate::report::output_stem(name);
         ancha_audio::write_wav(&stage.path().join(format!("{name}.wav")), audio)?;
         let peak = audio
             .planes
@@ -270,7 +271,7 @@ pub fn separate<B: Backend>(
             / (2 * audio.samples()) as f64)
             .sqrt();
         reports.push(StemReport {
-            name: name.clone(),
+            name: name.to_string(),
             origin: origin.clone(),
             peak,
             rms,

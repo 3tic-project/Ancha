@@ -16,6 +16,14 @@ import soundfile as sf
 import torch
 import onnxruntime as ort
 
+
+def output_stem(name):
+    if name in ("vocals", "lead_vocals", "all_vocals"):
+        return "vocals"
+    if name in ("instrumental", "instrument", "karaoke_mix"):
+        return "instrument"
+    return name
+
 # Before creating any session, opt out of telemetry and use CPU explicitly.
 ort.disable_telemetry_events()
 
@@ -80,7 +88,7 @@ def main():
     with torch.inference_mode():
         expected = reference.demix(source.T.copy()).T
     elapsed = time.perf_counter() - start
-    actual, rate = sf.read(a.rust_output / (c["predicted"] + ".wav"), dtype="float32", always_2d=True)
+    actual, rate = sf.read(a.rust_output / f"{output_stem(c['predicted'])}.wav", dtype="float32", always_2d=True)
     assert rate == sr and actual.shape == expected.shape and np.isfinite(actual).all() and np.isfinite(expected).all()
     error = actual.astype(np.float64) - expected.astype(np.float64)
     mse = np.mean(error ** 2)

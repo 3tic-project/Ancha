@@ -268,6 +268,7 @@ pub fn separate_mdx<B: Backend>(
         (&c.predicted, "predicted", &predicted),
         (&c.residual, "residual", &residual),
     ] {
+        let name = crate::report::output_stem(name);
         ancha_audio::write_wav(&stage.path().join(format!("{name}.wav")), audio)?;
         let peak = audio
             .planes
@@ -284,7 +285,7 @@ pub fn separate_mdx<B: Backend>(
             / (2 * audio.samples()) as f64)
             .sqrt();
         stems.push(StemReport {
-            name: name.clone(),
+            name: name.to_string(),
             origin: origin.into(),
             peak,
             rms,

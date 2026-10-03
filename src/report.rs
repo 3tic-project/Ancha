@@ -19,6 +19,16 @@ pub struct Timings {
     pub model_call_seconds: Vec<f64>,
 }
 
+/// File stem for a published WAV. Vocal tracks, including lead and all-vocals,
+/// are `vocals`. Accompaniment, including karaoke mix, is `instrument`.
+pub fn output_stem(name: &str) -> &str {
+    match name {
+        "vocals" | "lead_vocals" | "all_vocals" => "vocals",
+        "instrumental" | "instrument" | "karaoke_mix" => "instrument",
+        other => other,
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct StemReport {
     pub name: String,

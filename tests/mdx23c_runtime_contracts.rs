@@ -123,9 +123,9 @@ fn native_two_head_pipeline_preserves_length_and_never_publishes_cancelled_outpu
             .iter()
             .map(|s| (s.name.as_str(), s.origin.as_str()))
             .collect::<Vec<_>>(),
-        [("vocals", "predicted"), ("instrumental", "predicted")]
+        [("vocals", "predicted"), ("instrument", "predicted")]
     );
-    for name in ["vocals", "instrumental"] {
+    for name in ["vocals", "instrument"] {
         let wave = decode(
             &options.output.join(format!("{name}.wav")),
             DecodeOptions::default(),
