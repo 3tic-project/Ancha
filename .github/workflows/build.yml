@@ -114,7 +114,7 @@ jobs:
             "$CUDA_IMAGE" bash -c '
               set -euo pipefail
               export PATH=/root/.cargo/bin:$PATH
-              ldd --version | head -1
+              ldd --version | sed -n '1p'
               nvcc --version | tail -2
               cargo build --release --locked --features cuda,convert
             '
