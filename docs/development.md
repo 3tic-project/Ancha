@@ -1,4 +1,14 @@
-# 开发与复现
+# 开发
+
+可运行的模型在 `models/`，示例歌曲在 `audio/`，分离结果在 `outputs/`。参考实现、Python 环境和实验记录仍在 `NO_TRACK/`。
+
+日常使用见[使用说明](usage.md)。本文是构建、测试、比对和换机。实现约定在[架构说明](architecture.md)。各模型的适配记录：
+
+- [HyperACE 与经典 MDX](adapters.md)
+- [Mel Karaoke 与 MDX23C](derur-adapters.md)
+- [CUDA 记录](cuda.md)、[换机迁移](cuda-transfer.md)
+- 速度与历史验收：[速度优化](speed-optimization.md)、[适配性能](adapters-performance.md)、[早期性能记录](performance.md)
+- 数字原文在 `docs/reports/`
 
 工具链固定为 Rust 1.92.0 / Burn 0.21.0，提交 Cargo.lock。默认 CPU 后端为纯 Rust 的 Burn Flex；
 `--backend ndarray` 保留旧 NdArray，`cpu-opt` 与 macOS `accelerate`（系统 BLAS）只作用于它。
@@ -15,8 +25,12 @@ cargo clippy --workspace --all-targets --features convert --locked -- -D warning
 cargo test --workspace --features convert --locked
 cargo build --release --features convert,accelerate --locked # macOS
 PATH=/usr/local/cuda/bin:$PATH cargo build --release --features cuda --locked # Linux + NVIDIA
-# 仅在有 NVIDIA GPU 的机器上：硬件契约测试（合成模型 CUDA vs Flex、手写内核对 Burn 算子、GEMM 卷积、显存分配失败可见）。
-cargo test --release --locked --features cuda --test cuda_contracts --test cuda_device_failure
+# 仅在有 NVIDIA GPU 的空闲机器上。分配失败测试会占满显存，单独进程运行。
+cargo test --release --locked --features cuda,convert \
+  --test cuda_contracts --test cuda_mdx23c_contracts -- --test-threads=1
+cargo test --release --locked --features cuda,convert \
+  --test cuda_device_failure -- --test-threads=1
+# 或者：bash scripts/cuda-dev.sh build|test|reference|parity|smoke
 # 手写内核的算子级正确性与速度（对照 Burn 路径）。
 cargo run --release -p ancha-models --features cuda --example fused_attention -- 90 1722
 cargo run --release -p ancha-models --features cuda --example fused_linear -- 154980
@@ -24,7 +38,7 @@ cargo run --release -p ancha-models --features cuda --example fused_linear -- 15
 
 CI 使用原创合成音频与微型权重，不下载真实权重或商业歌曲。GPU 编译检查不等于 GPU 执行测试；
 CI 对 `cuda` 只做 `cargo check`（固定 `CUDARC_CUDA_VERSION=12020`）。
-本机实际硬件执行与 30 秒音频结果记录在 `docs/performance.md` 和 `docs/reports`。
+硬件上的速度和比对数字在 [CUDA 记录](cuda.md)、[Derur 适配说明](derur-adapters.md) 和 `docs/reports/`。早期 CPU / WGPU 记录仍在 [性能记录](performance.md)。
 
 WGPU autotune 在每个新的算子形状首次出现时实测候选内核，在仓库内运行时缓存于
 `target/autotune`，仓库外运行时位于系统用户缓存目录的 `cubecl`。首次使用某模型与上下文可能
@@ -42,15 +56,15 @@ uv pip install --python NO_TRACK/.venv-parity/bin/python -r scripts/requirements
 bash scripts/fetch-reference.sh
 
 # 使用同一 float32 WAV；132300 samples = 3 秒 @44.1 kHz。
-ffmpeg -ss 30 -i 'NO_TRACK/test_file/ReoNa - Amore.mp3' \
-  -t 3 -ac 2 -ar 44100 -c:a pcm_f32le NO_TRACK/runs/clip-3s.wav
-target/release/ancha separate NO_TRACK/runs/clip-3s.wav \
-  --model NO_TRACK/models/leap-xe-voc --output NO_TRACK/runs/parity-cpu \
+ffmpeg -ss 30 -i 'audio/ReoNa - Amore.mp3' \
+  -t 3 -ac 2 -ar 44100 -c:a pcm_f32le outputs/clip-3s.wav
+target/release/ancha separate outputs/clip-3s.wav \
+  --model models/leap-xe-voc --output outputs/parity-cpu \
   --backend cpu --chunk-samples 132300 --overlap 1
 NO_TRACK/.venv-parity/bin/python scripts/verify_parity.py \
-  --reference NO_TRACK/reference --checkpoint NO_TRACK/models/bs_leap_xe_voc.ckpt \
-  --package NO_TRACK/models/leap-xe-voc --input NO_TRACK/runs/clip-3s.wav \
-  --rust-output NO_TRACK/runs/parity-cpu --report NO_TRACK/runs/parity-cpu.json
+  --reference NO_TRACK/reference --checkpoint models/bs_leap_xe_voc.ckpt \
+  --package models/leap-xe-voc --input outputs/clip-3s.wav \
+  --rust-output outputs/parity-cpu --report outputs/parity-cpu.json
 ```
 
 单 chunk FP32 波形门槛为 max_abs < 1e-3 且 waveform SNR > 50 dB。这是与固定 Python
@@ -64,15 +78,16 @@ PyTorch 2.2.2 是 Intel macOS 的实际验证版本；Linux 上使用同版本�
 ANCHA_BACKENDS="cuda wgpu cpu" bash scripts/parity-matrix.sh
 ```
 
-Mel Karaoke / MDX23C 使用 `scripts/parity-derur.sh`，下载、完整参考、合成测试和串行预热消融
-见 [Derur 适配文档](derur-adapters.md)。原矩阵不把这两个新模型纳入旧 CUDA 已验收集合。
+Mel Karaoke / MDX23C 使用 `scripts/parity-derur.sh`，不放进上面的八模型矩阵。下载、参考环境、合成测试和速度消融见 [Derur 适配文档](derur-adapters.md)。2026-10-03 已在 Tesla P4 上跑过这两个模型的 CUDA 比对，以及 HyperACE 两个头（确认共享的 InstanceNorm）。整曲命令和一次计时见[使用说明](usage.md#整曲示例)。
+
+### 转换 Deux
 
 Deux 使用精确导出的 librosa 二值 Mel 索引：
 
 ```bash
 NO_TRACK/.venv-parity/bin/python scripts/make-deux-config.py configs/deux.json
-target/release/ancha convert NO_TRACK/models/becruily_deux.ckpt \
-  --preset deux --config configs/deux.json --output NO_TRACK/models/deux
+target/release/ancha convert models/becruily_deux.ckpt \
+  --preset deux --config configs/deux.json --output models/deux
 ```
 
 自定义 config 只能表达 schema 1 已实现的结构。HyperACE v2 需显式 `family=hyperace-v2`，
@@ -93,20 +108,29 @@ target/release/ancha convert NO_TRACK/models/becruily_deux.ckpt \
 工作区无远端配置。提交前执行 `git check-ignore NO_TRACK/...` 和
 `git ls-files`，确认原始音频、参考工程、完整日志与权重未进入索引。
 
-### 2026-10-03 CUDA 回迁合入
+### 2026-10-03 CUDA 回迁与 P4 验收
 
-本地 `main` 从 `f55bfb1` 快进至交接仓库的 `d8ac0d2`，保留全部 22 个后续提交，另带回 4 份未提交文档。
-挂载盘产生的执行权限变化已过滤。原始文档补丁、CUDA 参考比对 / 整曲汇总及实验脚本备份位于
-`NO_TRACK/imports/cuda-transfer-20261003`，Git 继续排除 `NO_TRACK` / `NOTRACK`。
+交接时 `main` 从 `f55bfb1` 收到 `d8ac0d2` 及后续提交。补丁、参考比对和实验脚本备份在
+`NO_TRACK/imports/cuda-transfer-20261003`。Git 继续排除 `NO_TRACK` / `NOTRACK`。
 
-macOS Intel 上通过 31 个测试、Clippy、仅 CPU 最小构建、默认后端与示例的 release 构建，
-以及固定 `CUDARC_CUDA_VERSION=12020` 的 CUDA 全目标编译检查。生产 CLI 的 CPU / WGPU 自检通过，
-CPU KARA 2（3 秒）、WGPU HyperACE inst（3 秒自定义上下文）、WGPU KARA 2（30 秒原生上下文）
-与固定 PyTorch / UVR 参考实现比对通过。详情见
+macOS Intel 上的编译、Clippy 和若干 CPU / WGPU 比对见
 [cuda-integration-macos.json](reports/cuda-integration-macos.json)。
+NVIDIA 硬件契约、Mel / MDX23C 的 3 秒比对、HyperACE 复测，以及 Amore 整曲，是在 Tesla P4 上做的。
+数字分别在 [CUDA 记录](cuda.md)、[Derur 适配说明](derur-adapters.md) 和
+[derur-verification.json](reports/derur-verification.json)。早期八模型整曲仍见
+[cuda-kernels.json](reports/cuda-kernels.json)。
 
-本地没有 NVIDIA GPU，CUDA 硬件契约与推理未在本次合入中执行；远端第二轮的 8/8 比对与 8 模型整曲结果
-见 [cuda-kernels.json](reports/cuda-kernels.json)，第一轮记录仍保留在原报告中。
+Linux CUDA 机器的固定入口：
+
+```bash
+bash scripts/cuda-dev.sh build       # release CLI、示例、doctor
+bash scripts/cuda-dev.sh test        # 格式、CPU 合成测试、CUDA 契约、显存失败
+bash scripts/cuda-dev.sh reference   # 重建 PyTorch 2.2.2 CPU 参考环境（需要 uv）
+bash scripts/cuda-dev.sh parity      # 原八模型 + Mel / MDX23C
+bash scripts/cuda-dev.sh smoke       # 十模型各跑歌曲中段 30 秒
+```
+
+打包与解压步骤在[迁移说明](cuda-transfer.md)。`scripts/package-cuda-transfer.py` 生成源码包和资产包并逐文件校验。
 
 ## HyperACE / MDX 新流程
 
@@ -135,8 +159,8 @@ Flex CPU 的卷积/矩阵乘走 Rayon，可在启动前设置 `RAYON_NUM_THREADS
 `scripts/package-cuda-transfer.py` 生成源码 / 资产两包并逐文件验证，`scripts/cuda-dev.sh` 提供构建与测试步骤。
 
 迁移包分为源码与资产两部分。源码包含 `.git`、文档、脚本和 NO_TRACK 中的参考代码与实验记录；
-资产包含 `NO_TRACK/models`（checkpoint、已转换模型包、四个 ONNX）、`NO_TRACK/test_file`
-以及基准使用的 `NO_TRACK/runs/clip-3s.wav` / `clip-30s.wav`。不迁移 `target`、
+资产包含 `models/`（checkpoint、已转换模型包、四个 ONNX）、`audio/`
+以及基准使用的 3 秒和 30 秒 float32 WAV。不迁移 `target`、
 `NO_TRACK/.venv-parity`（在新机器按 requirements 重建）、macOS 二进制、本机运行产物和 autotune
 缓存；autotune 结果与 GPU、驱动和 CubeCL 版本绑定，新机器首次运行会重新调优。
 

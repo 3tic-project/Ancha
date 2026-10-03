@@ -11,14 +11,14 @@
 | 项目 | Mel Karaoke aufr33 / viperx | MDX23C-8KFFT-InstVoc HQ2 |
 |---|---|---|
 | 本地包 / preset | `mel-karaoke-aufr33-viperx` | `mdx23c-inst-voc-hq2` |
-| 原生预测 | `lead_vocals.wav` | `vocals.wav`、`instrumental.wav` |
-| 残差 | `karaoke_mix.wav` | 无，两个输出都是 predicted |
+| 原生预测 | `vocals.wav` | `vocals.wav`、`instrument.wav` |
+| 残差 | `instrument.wav` | 无，两个输出都是 predicted |
 | FFT / hop / 采样率 | 2048 / 441 / 44100 | 8192 / 1024 / 44100 |
 | 原生 chunk / overlap divisor | 352800 / 4 | 261120 / 8 |
 | 严格加载张量 | 684 | 319 |
 | 结构 | dim384、6 层、60 Mel bands、8×64 attention | 4 subbands、5 scales、每级 2 blocks、128 起始 channels |
 
-Karaoke 模型预测主唱；残差保留其他成分，命名为 karaoke_mix，不能视为不含和声的纯伴奏。
+Karaoke 模型预测主唱，写入 `vocals.wav`；残差是其余成分，写入 `instrument.wav`，不能视为不含和声的纯伴奏。
 任务标签依据 [维护者模型映射](https://github.com/nomadkaraoke/python-audio-separator/blob/main/docs/deton24-model-mapping-and-ensemble-guide.md)。
 模型名称中的 SDR 数字不代表本次测试的质量指标。本次没有干净源真值，只验证实现一致性与运行速度。
 
@@ -29,23 +29,23 @@ cargo build --release --locked --features convert,accelerate  # macOS
 bash scripts/download-derur-models.sh
 
 target/release/ancha convert \
-  NO_TRACK/models/derur-download/mel_band_roformer_karaoke_aufr33_viperx_sdr_10/mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt \
-  --preset mel-karaoke-aufr33-viperx --output NO_TRACK/models/mel-karaoke-aufr33-viperx
+  models/derur-download/mel_band_roformer_karaoke_aufr33_viperx_sdr_10/mel_band_roformer_karaoke_aufr33_viperx_sdr_10.1956.ckpt \
+  --preset mel-karaoke-aufr33-viperx --output models/mel-karaoke-aufr33-viperx
 target/release/ancha convert \
-  NO_TRACK/models/derur-download/MDX23C-8KFFT-InstVoc_HQ_2/MDX23C-8KFFT-InstVoc_HQ_2.ckpt \
-  --preset mdx23c-inst-voc-hq2 --output NO_TRACK/models/mdx23c-inst-voc-hq2
+  models/derur-download/MDX23C-8KFFT-InstVoc_HQ_2/MDX23C-8KFFT-InstVoc_HQ_2.ckpt \
+  --preset mdx23c-inst-voc-hq2 --output models/mdx23c-inst-voc-hq2
 
-target/release/ancha separate 'NO_TRACK/test_file/ReoNa - Amore.mp3' \
-  --model NO_TRACK/models/mel-karaoke-aufr33-viperx --backend wgpu \
-  --start 30 --duration 30 --output NO_TRACK/runs/mel-karaoke-30s
-target/release/ancha separate 'NO_TRACK/test_file/ReoNa - Amore.mp3' \
-  --model NO_TRACK/models/mdx23c-inst-voc-hq2 --backend wgpu \
-  --start 30 --duration 30 --output NO_TRACK/runs/mdx23c-30s
+target/release/ancha separate 'audio/ReoNa - Amore.mp3' \
+  --model models/mel-karaoke-aufr33-viperx --backend cuda \
+  --start 30 --duration 30 --output outputs/mel-karaoke
+target/release/ancha separate 'audio/ReoNa - Amore.mp3' \
+  --model models/mdx23c-inst-voc-hq2 --backend cuda \
+  --start 30 --duration 30 --output outputs/mdx23c
 ```
 
 Linux / Windows 去掉 `accelerate`；NVIDIA 加 `--features cuda` 并选择 `--backend cuda`。
-本机无 NVIDIA GPU，这两个新模型的 CUDA 仅做编译检查，不能套用旧模型的 P4 验收结果。
-`inspect <模型包>` 可查看完整契约；输出目录必须尚不存在。
+Tesla P4 上的首次执行、数值验收和速度见下文 [CUDA](#cuda-tesla-p4)。
+`inspect <模型包>` 可查看完整契约。
 
 下载脚本优先用 `hf download`，也支持 curl，并核验 checkpoint 与 YAML 的固定 SHA256。
 转换 preset 再核验 checkpoint，Rust 转 F32 Safetensors 后构造完整 CPU 模型，拒绝未消费键、
@@ -85,8 +85,8 @@ CPU 默认后端卷积，WGPU / CUDA 默认 GEMM；`--conv-strategy gemm|backend
 因此失败定位到通用 flattened TDF GEMM。CPU 上这组变化仅约 0.8% 提升。
 生产 CPU / WGPU 保留 Burn 原始批量 Linear 和双轴 norm；问题窗口最终 max_abs < 8e-7，
 完整 30 秒原生重叠的两个头分别约 2.98e-7 / 3.58e-7，均通过原门槛。
-CUDA 只有自定义 GEMM 支持形状才使用它，
-否则也回到原 Linear。失败记录保留在报告中，不以宽松阈值作为通过依据。
+CUDA 上 `k % 8 == 0` 的裸 TDF GEMM 会把不足 128 列的权重零填充到内核宽度；
+其余形状，以及带收尾的投影，仍回到原 Linear。失败记录保留在报告中，不以宽松阈值作为通过依据。
 
 `--duration` 只截输入。显式 `--overlap 1` 会改变上下文覆盖，报告为 custom-context。
 MDX23C 的 `--chunk-samples` 必须为 `1024*(frames-1)`，frames 为 32 的倍数且在合法范围内；
@@ -137,7 +137,38 @@ max_abs < 1e-3、waveform SNR > 50 dB 为一致性门槛，不是分离 SDR。
 
 Mel 的 30 秒原生上下文完成 21 个块，验证有限值、双声道长度与残差重建；重建 max_abs=5.96e-8。
 它尚未做整段独立 PyTorch 分块比对。MDX23C 的 30 秒参考直接执行 UVR 原始 demix 的 48 个窗口。
-完整修订、SHA、门槛、回退记录与 CUDA 编译边界见 [验收数值](reports/derur-verification.json)。
+完整修订、SHA、门槛、回退记录与 CUDA 结果见 [验收数值](reports/derur-verification.json)。
+
+## CUDA（Tesla P4）
+
+2026-10-03，在 Intel Xeon E5-2673 v3 / Tesla P4 8 GB（sm_61，应用时钟 1113 MHz）/ CUDA 12.2 上，
+用同一套 FP32 门槛对 PyTorch 2.2.2+cpu 与固定 UVR demix 做了首次 NVIDIA 验收。Mel 走已有融合
+attention 与自定义 GEMM（`linear_layout=flattened`，`attention_kernel=fused`）。MDX23C 默认
+`--conv-strategy gemm`（隐式 GEMM 卷积）和 `--mdx-no-optimize` 关闭时的 TDF GEMM。
+
+| 场景 | max_abs | waveform SNR |
+|---|---:|---:|
+| Mel，CUDA，3 秒单块 | 6.26e-7 | 125.7 dB |
+| MDX23C，CUDA，3 秒原生 overlap8，双头 | ≤2.57e-6 | ≥113.7 dB |
+
+手写 InstanceNorm 也进入 HyperACE。同一 3 秒单块上，voc / inst 对 PyTorch 的 max_abs 为 3.34e-6 / 4.35e-6，
+SNR 121.5 / 118.5 dB。与改前 CUDA 波形相比，MDX23C overlap=1 的双头 max_abs 为 2.55e-6 / 2.49e-6。
+
+两处只在 CUDA 生效的改动：
+
+- TDF 的裸 GEMM 在 `m` 不是 128 的倍数时把权重零填充到 128 列再裁掉。深层频率（8、16、32、64）因此留在自定义 GEMM 上。带 bias、GELU、RoPE 或 residual 的收尾仍要求 `m % 128 == 0`。
+- InstanceNorm 用一个 cube 处理一个 `(batch, channel)` 平面，两遍归约均值和有偏方差，`eps` 在平方根内。CPU / WGPU 仍走原来的双轴 `mean_dim`。
+
+卷积路径没有改。把 patch 读取改成连续地址加 plane shuffle 后，3×3 热运行从 1.54 s 变到 1.60–1.76 s，已撤回。
+
+同一热二进制、3 秒 PCM、PTX 已缓存。MDX23C overlap=1 单次 forward 的模型时间中位数从 1.537 s 降到 1.465 s
+（三次 1.457 / 1.465 / 1.469）。原生 overlap8 的 12 次 forward 合计模型时间 15.54 s（含加载的总时间 19.86 s）。
+30 秒原生 overlap8 为 48 次 forward，模型时间 61.55 s，含加载的总时间 69.97 s（RTF 2.33）。热调用中位数 1.279 s，
+第一次 1.467 s。关掉自定义 TDF GEMM 后同一次 overlap=1 forward 的模型时间为 12.24 s；改用 Burn conv2d 为 190 s。
+Mel 的 3 秒单块热运行模型时间 0.65 s，flattened 与 batched 都在 0.58 s 附近，CUDA 默认保持 flattened。
+原生 3 秒（8 秒块、overlap 4，两次 forward）模型时间 2.86 s。
+这些是单次或三次热运行，不是 WGPU 那张三对交替表，也不能把 overlap=1 的 RTF 当成原生 overlap8。
+RX 580 上 30 秒 MDX23C 的 239 s 是另一块 GPU、且当时有并行负载，不能和这次 P4 数字排名。
 
 ## 速度消融
 

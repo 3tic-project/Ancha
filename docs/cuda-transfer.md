@@ -62,9 +62,10 @@ Linux 构建不使用 macOS `accelerate` feature。`build` 自动追加 CUDA 与
 PyTorch、ONNX Runtime 或 Python。`test` 的最后一个测试会主动申请超过整块显存的缓冲，验证错误能被报告，
 应在空闲 GPU 上执行。所有 CUDA 测试都需要真实 NVIDIA GPU。
 
-新加入的 Mel Karaoke / MDX23C 已在本地 CPU / RX 580 WGPU 验证；**本次交接前尚未在 NVIDIA 执行这两个模型**。
-特别需要验收 MDX23C 的 CUDA TDF GEMM / 转置卷积路径，先通过 `test` 与 `parity` 再优化。
-原有八模型的 Tesla P4 CUDA 验证见 [CUDA 记录](cuda.md)，不能代替新模型验证。
+新加入的 Mel Karaoke / MDX23C 已在 Tesla P4 上通过 `test` 与独立参考 `parity`。
+MDX23C 的 CUDA TDF GEMM（含窄频率维零填充）和 2×2 转置卷积与参考一致；随后把 InstanceNorm 换成手写归约。
+验收数字和热运行时间见 [Derur 适配说明](derur-adapters.md) 的 CUDA 一节，以及 [验收数值](reports/derur-verification.json)。
+原有八模型的 Tesla P4 CUDA 验证见 [CUDA 记录](cuda.md)。
 Mel 的快速 parity 使用 3 秒单块自定义上下文；MDX23C 使用原生重叠。`smoke` 的 30 秒运行是完整功能检查，
 并不是独立 PyTorch 的整段质量验收。比对要求 max_abs < 1e-3 且 waveform SNR > 50 dB。
 

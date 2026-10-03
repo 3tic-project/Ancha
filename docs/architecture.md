@@ -72,7 +72,7 @@ RoFormer 默认采用 manifest 的 chunk 与 overlap divisor，step=`chunk_sampl
 
 MDX23C 使用 `src/mdx23c_runtime.rs` 的 UVR 零上下文与矩形常数除法 OLA。
 `src/spectral.rs` 共用 stereo complex pack / unpack；MDX23C 保留 DC，经典 MDX 继续清零前 3 bins。
-MDX23C 双轨均是网络频谱预测；Mel Karaoke 的单头任务为主唱，其残差标签为 karaoke_mix。
+MDX23C 双轨均是网络频谱预测。写出的文件一律是 `vocals.wav` 与 `instrument.wav`；Mel Karaoke 的单头预测主唱，残差是伴唱。
 
 输出为原增益的 float32 WAV；不做每轨归一化和削波。单输出模型的 predicted+residual
 按浮点误差重建原 PCM；这个指标只证明残差语义，不能衡量分离质量。没有干净人声／伴奏真值

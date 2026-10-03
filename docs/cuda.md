@@ -40,7 +40,7 @@ target/release/ancha separate NO_TRACK/runs/clip-3s.wav --model NO_TRACK/models/
 | 内核缓存 | 默认把 NVRTC 生成的 PTX 存到缓存根下 `ptx-sm<算力>/<模型文件名>/`（仓库内为 `target/`，仓库外为用户缓存目录 `cubecl/`）；cubecl.toml / Burn.toml 设置了 `[compilation] cache` 时尊重用户配置 |
 | 设备故障检查 `src/device.rs` | 记录 CubeCL 设备线程（`DSU-*` / `DSD-*`）的 panic，在加载后与每次模型调用后检查，失败即报错且不发布结果 |
 | 加载 | RoFormer 权重只读一次，SHA-256 在另一线程与解析、折叠、上传并行，摘要不符仍报 checksum 错误 |
-| 手写内核 `crates/ancha-models/src/fused` | 单遍 attention、带收尾的 GEMM、隐式 GEMM 卷积，以 Burn fusion 自定义算子接入，只在 CUDA 分派；见下文第二轮 |
+| 手写内核 `crates/ancha-models/src/fused` | 单遍 attention、带收尾的 GEMM、隐式 GEMM 卷积、NCHW InstanceNorm，以 Burn fusion 自定义算子接入，只在 CUDA 分派；见下文第二轮。裸 GEMM 在 `m` 不是 128 的倍数时零填充到 128 列 |
 | 测试 | `tests/cuda_contracts.rs`（微型 BS / Mel 整条分离 CUDA 对 Flex < 1e-5，其中一组 64 宽 head 的模型走手写内核；attention / 门控 attention 对分块实现、GEMM 与各收尾对 Burn 算子、两种 GEMM 卷积对 conv2d，含不整块、跨步输入与不支持的形状；无效序号）与 `tests/cuda_device_failure.rs`（超显存分配必须被报告），需 `--features cuda` 与真实 GPU；CI 只 `cargo check` |
 
 ### 显存不足曾静默产出错误结果
@@ -310,7 +310,7 @@ Nsight Systems 2025.5.2（`-t cuda`）记录真实 GPU 内核时长，不做逐�
 1. attention 内核：原生块里仍占 GPU 时间的约一半（2.7 TFLOPS，约峰值的 48%）。拆解实验表明 score 循环、
    PV 循环、其余（装载、softmax、同步）大致各占 42% / 39% / 19%，循环受共享内存带宽限制；可试更大的寄存器块
    （需要压缩 48 KiB 内的共享内存布局）或在有 Tensor Core 的 GPU 上用 mma（不同精度配置，需单独 parity）。
-2. HyperACE SegmModel 的 InstanceNorm 归约与逐元素运算（约 0.5 s / 块）和深度可分离卷积。
+2. HyperACE / MDX23C 的 InstanceNorm 已换成手写两遍归约（2026-10-03，MDX23C 单次 forward 热运行 1.537 s → 1.465 s）。深度可分离卷积仍用 Burn conv2d。逐元素 GELU 还没有并进这次归约。
 3. 时间轴 / 频率轴之间的转置拷贝（Leap 约 0.18 s / 块）：让 GEMM 直接按跨步读写。
 4. 加载：SHA-256 在无 SHA 扩展的 CPU 上是 Deux 加载的下限，可考虑按文件身份缓存已验证摘要（需要权衡完整性语义）。
 5. WGPU / NVIDIA Vulkan 上 Deux 与 HyperACE inst 的数值偏差：逐层导出中间张量与 CPU 对比定位算子。

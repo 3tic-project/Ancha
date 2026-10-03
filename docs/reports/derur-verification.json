@@ -317,6 +317,97 @@
         }
       ],
       "status": "passed"
+    },
+    {
+      "case": "mel-cuda-single-3s",
+      "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+      "backend": "cuda",
+      "torch": "2.2.2+cpu",
+      "numpy": "1.26.4",
+      "platform": "Linux-5.14.0-611.20.1.el9_7.x86_64-x86_64-with-glibc2.34",
+      "samples": 132300,
+      "model_id": "mel-karaoke-aufr33-viperx",
+      "comparisons": [
+        {
+          "stem": "lead_vocals",
+          "max_abs": 6.258487701416016e-07,
+          "mean_abs": 5.165457878897324e-08,
+          "waveform_snr_db": 125.67988854531804,
+          "status": "passed"
+        }
+      ],
+      "status": "passed",
+      "pytorch_forward_seconds": 5.31005297601223
+    },
+    {
+      "case": "mdx23c-cuda-native-3s",
+      "scope": "pinned UVR MDXC demix + TFC/TDF v3, stereo two native heads; no denoise, pitch shift or postprocessing; waveform consistency, not SDR",
+      "backend": "cuda",
+      "torch": "2.2.2+cpu",
+      "numpy": "1.26.4",
+      "platform": null,
+      "samples": 132300,
+      "model_id": null,
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 2.5331974029541016e-06,
+          "waveform_snr_db": 114.99696491047125,
+          "status": "passed"
+        },
+        {
+          "stem": "instrumental",
+          "max_abs": 2.5741755962371826e-06,
+          "waveform_snr_db": 113.71250430269114,
+          "status": "passed"
+        }
+      ],
+      "status": "passed",
+      "reference_seconds": 109.29365298710763
+    },
+    {
+      "case": "hyperace-voc-cuda-single-3s",
+      "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+      "backend": "cuda",
+      "torch": "2.2.2+cpu",
+      "numpy": "1.26.4",
+      "platform": "Linux-5.14.0-611.20.1.el9_7.x86_64-x86_64-with-glibc2.34",
+      "samples": 132300,
+      "model_id": "hyperace-v2-voc",
+      "comparisons": [
+        {
+          "stem": "vocals",
+          "max_abs": 3.337860107421875e-06,
+          "mean_abs": 1.0047576776226648e-07,
+          "waveform_snr_db": 121.52464999124389,
+          "status": "passed"
+        }
+      ],
+      "status": "passed",
+      "note": "Shared InstanceNorm kernel; not a Derur model.",
+      "pytorch_forward_seconds": 7.1080807745456696
+    },
+    {
+      "case": "hyperace-inst-cuda-single-3s",
+      "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+      "backend": "cuda",
+      "torch": "2.2.2+cpu",
+      "numpy": "1.26.4",
+      "platform": "Linux-5.14.0-611.20.1.el9_7.x86_64-x86_64-with-glibc2.34",
+      "samples": 132300,
+      "model_id": "hyperace-v2-inst",
+      "comparisons": [
+        {
+          "stem": "instrumental",
+          "max_abs": 4.351139068603516e-06,
+          "mean_abs": 1.2617031385819636e-07,
+          "waveform_snr_db": 118.5461807049092,
+          "status": "passed"
+        }
+      ],
+      "status": "passed",
+      "note": "Shared InstanceNorm kernel; not a Derur model.",
+      "pytorch_forward_seconds": 7.152596149593592
     }
   ],
   "mel_native_output_integrity": [
@@ -395,7 +486,7 @@
       "status": "superseded-failure"
     }
   ],
-  "correction": "Generic flattened TDF caused waveform errors on RX 580. Restoring only spatial-axis norm did not fix it. CPU/WGPU now use original batched Linear and spatial-axis norm. Only supported CUDA custom TDF GEMM shapes use the CUDA optimization; otherwise fall back to batched Linear.",
+  "correction": "Generic flattened TDF caused waveform errors on RX 580. Restoring only spatial-axis norm did not fix it. CPU/WGPU now use original batched Linear and spatial-axis norm. On CUDA, a bare TDF GEMM with k % 8 == 0 zero-pads m up to a multiple of 128; epilogue GEMMs still require m % 128 == 0, and other shapes fall back to batched Linear.",
   "validation_binaries": {
     "mel_initial": "initial adapter release build; no digest captured",
     "mdx23c_final_30s": "bd7b4079c4a848b730b3832a4b4da417958757c034790258937840436c51d64e",
@@ -407,14 +498,64 @@
     "release_cli_and_sdk_examples": "passed",
     "minimal_cpu_all_targets": "passed",
     "cuda_all_target_clippy": "passed",
-    "cuda_hardware": "not executed: no NVIDIA device",
+    "cuda_hardware": "passed on Tesla P4: cuda_contracts 9, cuda_mdx23c_contracts 2, cuda_device_failure 1; Mel and MDX23C PyTorch/UVR parity passed",
     "golden_regeneration_max_abs": 2.7284841053187847e-11,
     "macos_accelerate_all_target_clippy": "passed"
   },
   "limitations": [
     "Mel PyTorch parity uses one 3-second custom-context chunk. Its native 30-second run was checked for finite stereo length and residual reconstruction, not independent chunked PyTorch parity.",
     "MDX23C native 3-second runs and complete 30-second WGPU run use pinned UVR demix padding and rectangular OLA.",
-    "CUDA checks are compile-only for these two new models; old eight-model P4 results do not apply."
+    "CUDA parity for these two models is the 3-second scope below, on one Tesla P4. The 30-second CUDA run checks that native overlap finishes; it is not an independent PyTorch parity."
   ],
-  "status": "passed for the stated CPU/WGPU scopes"
+  "status": "passed for the stated CPU/WGPU scopes and the Tesla P4 3-second CUDA parity",
+  "cuda_p4": {
+    "date": "2026-10-03",
+    "gpu": "NVIDIA Tesla P4, sm_61, 1113 MHz application clock",
+    "driver": "535.288.01",
+    "cuda": "12.2",
+    "mdx23c_overlap1_hot_model_seconds": [
+      1.457,
+      1.465,
+      1.469
+    ],
+    "mdx23c_overlap1_before_model_seconds": [
+      1.539,
+      1.537,
+      1.538
+    ],
+    "mdx23c_native_3s_model_seconds": 15.541,
+    "mdx23c_native_3s_forwards": 12,
+    "mdx23c_native_3s_call_seconds": [
+      1.47,
+      1.279,
+      1.28,
+      1.279,
+      1.281,
+      1.279,
+      1.279,
+      1.279,
+      1.279,
+      1.279,
+      1.279,
+      1.28
+    ],
+    "mdx23c_no_tdf_gemm_model_seconds": 12.24,
+    "mdx23c_burn_conv_model_seconds": 190.422,
+    "mel_single_3s_model_seconds": 0.654,
+    "mel_native_3s_model_seconds": 2.863,
+    "mel_native_3s_call_seconds": [
+      1.494,
+      1.369
+    ],
+    "waveform_vs_previous_cuda_overlap1_max_abs": {
+      "vocals": 2.5480985641479492e-06,
+      "instrumental": 2.4884939193725586e-06
+    },
+    "mdx23c_native_30s_model_seconds": 61.549,
+    "mdx23c_native_30s_total_seconds": 69.974,
+    "mdx23c_native_30s_forwards": 48,
+    "mdx23c_native_30s_first_call_seconds": 1.467,
+    "mdx23c_native_30s_later_call_median_seconds": 1.279,
+    "mdx23c_native_30s_rtf_including_load": 2.332
+  }
 }

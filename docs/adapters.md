@@ -12,21 +12,21 @@ macOS 本机完整构建：
 cargo build --release --locked --features convert,accelerate
 bash scripts/download-models.sh
 
-target/release/ancha convert NO_TRACK/models/hyperace-v2-voc.ckpt \
-  --preset hyperace-v2-voc --output NO_TRACK/models/hyperace-v2-voc
-target/release/ancha convert NO_TRACK/models/hyperace-v2-inst.ckpt \
-  --preset hyperace-v2-inst --output NO_TRACK/models/hyperace-v2-inst
+target/release/ancha convert models/hyperace-v2-voc.ckpt \
+  --preset hyperace-v2-voc --output models/hyperace-v2-voc
+target/release/ancha convert models/hyperace-v2-inst.ckpt \
+  --preset hyperace-v2-inst --output models/hyperace-v2-inst
 
 # ONNX 可直接使用，无须导出中间模型包。
-target/release/ancha inspect NO_TRACK/models/UVR_MDXNET_KARA_2.onnx
-target/release/ancha separate 'NO_TRACK/test_file/ReoNa - Amore.mp3' \
-  --model NO_TRACK/models/UVR_MDXNET_KARA_2.onnx --backend wgpu \
-  --start 30 --duration 30 --output NO_TRACK/runs/my-karaoke
+target/release/ancha inspect models/UVR_MDXNET_KARA_2.onnx
+target/release/ancha separate 'audio/ReoNa - Amore.mp3' \
+  --model models/UVR_MDXNET_KARA_2.onnx --backend cuda \
+  --start 30 --duration 30 --output outputs/mdx-kara-2
 
 # HyperACE 使用原生 960000-sample context / overlap=4。
-target/release/ancha separate 'NO_TRACK/test_file/ReoNa - Amore.mp3' \
-  --model NO_TRACK/models/hyperace-v2-voc --backend wgpu \
-  --start 30 --duration 3 --output NO_TRACK/runs/my-hyperace-native
+target/release/ancha separate 'audio/ReoNa - Amore.mp3' \
+  --model models/hyperace-v2-voc --backend cuda \
+  --start 30 --duration 3 --output outputs/hyperace-voc
 ```
 
 Linux / Windows 去掉 `accelerate`。CPU 可用 `--backend cpu`；所有后端都需显式选择。
@@ -61,8 +61,7 @@ overlap=4，不能把普通 BS 权重或设置套入该模型。3 秒单块 pari
 | UVR-MDX-NET-Inst_HQ_2 | 全部人声分离 | instrumental | all_vocals | 6144 / 3072 / 256 | 1.033 |
 
 文件名可更改，注册按完整 SHA256 识别。未注册摘要拒绝运行，防止猜测 FFT 或预测轨语义。
-普通任务的 all_vocals 包含和声；Karaoke 的 residual lead_vocals 不是全部人声。
-输出 WAV 使用上表的名字，不统一误写为 vocals/instrumental。
+普通任务的人声包含和声。写出的文件一律是 `vocals.wav` 和 `instrument.wav`：上表里的人声轨（all_vocals、lead_vocals）对应 `vocals.wav`，伴奏和卡拉 OK 伴唱（instrumental、karaoke_mix）对应 `instrument.wav`。KARA 2 的预测是伴唱，因此 `instrument.wav` 是模型输出。
 
 44100 Hz 双声道、hop=1024，周期 Hann、center=true、reflect STFT；打包顺序为
 `[left.real, left.imag, right.real, right.imag]`。网络输入的前三个频点清零，超出 F 的高频在
@@ -126,7 +125,7 @@ NO_TRACK/.venv-parity/bin/python scripts/verify_mdx.py \
 bash scripts/benchmark-mdx.sh
 ```
 
-参考脚本直接从固定 UVR 文件中抽取原始 initialize/demix/run_model 方法，原文不进入 Git；
+参考脚本直接从固定 UVR 文件中抽取原始 initialize/demix/run_model 方法；
 网络由 CPU ONNX Runtime 1.20.1 执行，创建 session 前关闭 telemetry，不加载 GUI。
 标准门槛 max_abs<1e-3 且 waveform SNR>50dB；这衡量实现一致性，不是有真值的 SDR。
 
