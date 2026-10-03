@@ -158,16 +158,17 @@ fn synthetic_model_runs_full_pipeline_both_families_and_preserves_native_stems()
                 .fold(0f32, f32::max);
             assert!(max < 1e-5, "Flex/threads/auto tiles changed {name}: {max}");
         }
-        assert!(
-            separate::<burn::backend::NdArray<f32>>(
-                &options,
-                &Default::default(),
-                "cpu",
-                &AtomicBool::new(false),
-                |_, _| {}
-            )
-            .is_err()
-        );
+        separate::<burn::backend::NdArray<f32>>(
+            &options,
+            &Default::default(),
+            "cpu",
+            &AtomicBool::new(false),
+            |_, _| {},
+        )
+        .unwrap();
+        for name in ["vocals", "instrument"] {
+            assert!(output.join(format!("{name}.wav")).is_file());
+        }
         let options = SeparateOptions {
             output: temp.path().join("cancelled"),
             ..options

@@ -1,8 +1,8 @@
 //! Separate one file with one model, on a backend chosen at start-up.
 //!
 //! ```bash
-//! cargo run --release --example separate -- 'NO_TRACK/test_file/ReoNa - Amore.mp3' \
-//!     NO_TRACK/models/leap-xe-voc NO_TRACK/runs/example-leap --backend wgpu --duration 30
+//! cargo run --release --example separate -- 'audio/ReoNa - Amore.mp3' \
+//!     models/leap-xe-voc outputs/example-leap --backend cuda --duration 30
 //! # NVIDIA: build with `--features cuda` and pass `--backend cuda`.
 //! ```
 //!
@@ -25,7 +25,7 @@ struct Args {
     input: PathBuf,
     /// RoFormer / MDX23C package directory or classic MDX `.onnx` file.
     model: PathBuf,
-    /// New output directory for the stems and run.json.
+    /// Directory for the stems and run.json. A previous result there is replaced.
     output: PathBuf,
     #[arg(long, value_enum)]
     backend: BackendKind,

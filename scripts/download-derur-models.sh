@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 revision=f3bb9a312519f4404dde996ef1054ec30353c46f
-root=NO_TRACK/models/derur-download
+root=models/derur-download
 mkdir -p "$root"
 fetch() {
   local name="$1" digest="$2" target="$root/$1"

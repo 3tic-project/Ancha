@@ -142,7 +142,6 @@ pub fn separate<B: Backend>(
 ) -> Result<Report> {
     let total = Instant::now();
     crate::device::install_guard();
-    ensure!(!o.output.exists(), "output already exists");
     ensure!(!cancelled.load(Ordering::Relaxed), "task cancelled");
     let manifest = mdx23c::read_manifest(&o.model)?;
     let mut config = manifest.config.clone();
@@ -353,6 +352,6 @@ pub fn separate<B: Backend>(
         serde_json::to_vec_pretty(&report)?,
     )?;
     ensure!(!cancelled.load(Ordering::Relaxed), "task cancelled");
-    std::fs::rename(stage.path(), &o.output)?;
+    crate::runtime::publish_directory(stage.path(), &o.output)?;
     Ok(report)
 }

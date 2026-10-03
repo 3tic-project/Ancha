@@ -90,7 +90,7 @@ pub fn separate_mdx<B: Backend>(
 ) -> Result<MdxReport> {
     let total = Instant::now();
     crate::device::install_guard();
-    ensure!(!o.output.exists(), "output already exists");
+
     ensure!(!cancelled.load(Ordering::Relaxed), "task cancelled");
     ensure!(
         (1..=4).contains(&o.batch_size),
@@ -361,7 +361,6 @@ pub fn separate_mdx<B: Backend>(
         stage.path().join("run.json"),
         serde_json::to_vec_pretty(&report)?,
     )?;
-    ensure!(!o.output.exists(), "output appeared during inference");
-    std::fs::rename(stage.path(), &o.output)?;
+    crate::runtime::publish_directory(stage.path(), &o.output)?;
     Ok(report)
 }

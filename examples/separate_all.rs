@@ -2,7 +2,7 @@
 //!
 //! ```bash
 //! cargo run --release --features cuda --example separate_all -- --backend cuda
-//! cargo run --release --example separate_all -- --backend wgpu --duration 30 --only deux
+//! cargo run --release --example separate_all -- --backend cpu --duration 30 --only deux
 //! ```
 //!
 //! Each model writes its stems and run.json to `<output>/<model>/`. `<output>/summary.json`
@@ -74,11 +74,11 @@ struct Args {
     /// GPU ordinal for wgpu / cuda.
     #[arg(long, default_value_t = 0)]
     device: usize,
-    #[arg(long, default_value = "NO_TRACK/test_file/ReoNa - Amore.mp3")]
+    #[arg(long, default_value = "audio/ReoNa - Amore.mp3")]
     input: PathBuf,
-    #[arg(long, default_value = "NO_TRACK/models")]
+    #[arg(long, default_value = "models")]
     models: PathBuf,
-    /// New directory; default NO_TRACK/runs/examples/separate-all-<backend>-<unix time>.
+    /// Directory for every model. Default outputs/separate-all-<backend>-<unix time>.
     #[arg(long)]
     output: Option<PathBuf>,
     /// Comma-separated subset of the model names above.
@@ -106,14 +106,10 @@ fn main() -> Result<()> {
         );
     }
     let stamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
-    let root = args.output.clone().unwrap_or_else(|| {
-        format!(
-            "NO_TRACK/runs/examples/separate-all-{}-{stamp}",
-            kind.label()
-        )
-        .into()
-    });
-    ensure!(!root.exists(), "output already exists: {}", root.display());
+    let root = args
+        .output
+        .clone()
+        .unwrap_or_else(|| format!("outputs/separate-all-{}-{stamp}", kind.label()).into());
     std::fs::create_dir_all(&root)?;
     let cancelled = Arc::new(AtomicBool::new(false));
     let flag = cancelled.clone();

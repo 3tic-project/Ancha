@@ -42,11 +42,6 @@ pub fn separate<B: Backend>(
     let total_start = Instant::now();
     crate::device::install_guard();
     ensure!(!cancelled.load(Ordering::Relaxed), "task cancelled");
-    ensure!(
-        !options.output.exists(),
-        "output already exists: {}; choose a new directory",
-        options.output.display()
-    );
     options.attention.validate()?;
     let mut manifest = read_manifest(&options.model)?;
     let profile = if options.chunk_samples.is_some() || options.overlap.is_some() {
@@ -365,9 +360,32 @@ pub fn separate<B: Backend>(
         stage.path().join("run.json"),
         serde_json::to_vec_pretty(&report)?,
     )?;
-    ensure!(!options.output.exists(), "output appeared during inference");
-    std::fs::rename(stage.path(), &options.output).context("publish separation outputs")?;
+    publish_directory(stage.path(), &options.output)?;
     Ok(report)
+}
+
+/// Move a finished staging directory onto `dest`, replacing a previous result.
+pub(crate) fn publish_directory(stage: &Path, dest: &Path) -> Result<()> {
+    if !dest.exists() {
+        std::fs::rename(stage, dest).context("publish separation outputs")?;
+        return Ok(());
+    }
+    let parent = dest
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let name = dest.file_name().unwrap_or_default().to_string_lossy();
+    let previous = parent.join(format!(".{name}.previous"));
+    if previous.exists() {
+        std::fs::remove_dir_all(&previous)?;
+    }
+    std::fs::rename(dest, &previous).context("move previous output aside")?;
+    if let Err(error) = std::fs::rename(stage, dest) {
+        let _ = std::fs::rename(&previous, dest);
+        return Err(error).context("publish separation outputs");
+    }
+    std::fs::remove_dir_all(previous)?;
+    Ok(())
 }
 
 fn real_complex(re: f32, im: f32) -> ancha_audio::dsp::SpectrumComplex {
