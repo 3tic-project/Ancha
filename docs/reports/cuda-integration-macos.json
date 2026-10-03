@@ -1,0 +1,223 @@
+{
+  "scope": "macOS integration of the remote CUDA work; synthetic contracts and fixed-reference audio parity. Single-run elapsed times are observations, not a performance benchmark. CUDA kernels were compiled but not executed on this host.",
+  "date": "2026-10-03",
+  "platform": "macos-x86_64",
+  "rustc": "rustc 1.92.0 (ded5c06cf 2025-12-08)",
+  "import": {
+    "transfer_source_head": "d8ac0d2a5c60902c3e3bc89bcafcc2105da5f58a",
+    "imported_on": "2026-10-03",
+    "source_reports": [
+      {
+        "path": "NO_TRACK/runs/parity-fused9/summary.json",
+        "sha256": "b4a2ee9bdf8292c1b00dfa87451ea407b1263e483e8f8abe5171692aa441167b"
+      },
+      {
+        "path": "NO_TRACK/runs/examples/full-song-cuda-kernels/summary.json",
+        "sha256": "350a75b563e11555ef64c43baeaa632f3942f41d8a7cb4fb1c242d71c5eb4be5"
+      }
+    ],
+    "binary_commit": "not recorded by the source summaries",
+    "local_base_commit": "f55bfb1",
+    "imported_commit_count": 22,
+    "remote_uncommitted_patch_sha256": "df9382450aa10a47cca8041689f6a135072958c344abc01abb18c16f65010555"
+  },
+  "local_binary_sha256": "56c6975c16fcdb4a3a7cba0501f6d3cf9ba3619641199728ee71c96c8b37ebe9",
+  "checks": [
+    {
+      "command": "cargo fmt --all --check",
+      "status": "passed"
+    },
+    {
+      "command": "cargo clippy --workspace --all-targets --features convert,accelerate --locked -- -D warnings",
+      "status": "passed"
+    },
+    {
+      "command": "cargo test --workspace --all-targets --features convert,accelerate --locked",
+      "status": "passed",
+      "passed_tests": 31,
+      "cuda_hardware_tests_executed": false
+    },
+    {
+      "command": "CUDARC_CUDA_VERSION=12020 cargo check --workspace --all-targets --features cuda,convert --locked",
+      "status": "passed",
+      "scope": "compile only; CUDA not executed"
+    },
+    {
+      "command": "cargo check --no-default-features --workspace --all-targets --locked",
+      "status": "passed"
+    },
+    {
+      "command": "cargo build --release --locked --features convert,accelerate --examples --bin ancha",
+      "status": "passed"
+    },
+    {
+      "command": "bash -n scripts/parity-matrix.sh scripts/benchmark-backends.sh",
+      "status": "passed"
+    },
+    {
+      "command": "python3 -m py_compile scripts/summarize_parity.py scripts/summarize_backends.py",
+      "status": "passed"
+    }
+  ],
+  "doctor": {
+    "cpu": {
+      "backend": "flex",
+      "platform": "macos-x86_64",
+      "precision": "f32",
+      "scope": "2x2 matmul and readback; not full-model certification",
+      "status": "passed"
+    },
+    "wgpu": {
+      "backend": "fusion<cubecl<wgpu<wgsl>>>",
+      "platform": "macos-x86_64",
+      "precision": "f32",
+      "scope": "2x2 matmul and readback; not full-model certification",
+      "status": "passed"
+    }
+  },
+  "cuda_execution": "not run: no NVIDIA GPU on the local integration host",
+  "cuda_unbuilt_cli": "exit 2 with CUDA support is not built",
+  "audio_cases": [
+    {
+      "case": "hyperace-inst-wgpu-3s",
+      "run": {
+        "model_id": "hyperace-v2-inst",
+        "backend": "wgpu",
+        "device": "fusion<cubecl<wgpu<wgsl>>>",
+        "precision": "f32",
+        "audio_seconds": 3.0,
+        "samples_per_channel": 132300,
+        "chunks": 1,
+        "profile": "custom-context",
+        "input_pcm_sha256": "f05dcb894bbcea0d2f5e71381f4a50d4b9c9bbb78a5a2e57823d80a54ebc53a0",
+        "weights_sha256": "775175135ce67bbbd68ec8812e9035aa7ac9c3332efdbf743172d4df2a3ae062",
+        "build_features": [
+          "wgpu",
+          "accelerate",
+          "convert",
+          "onnx",
+          "simd",
+          "cpu-opt"
+        ],
+        "linear_layout": "batched",
+        "conv_strategy": "backend",
+        "attention_kernel": "tiled",
+        "gemm_kernel": "burn"
+      },
+      "single_run_total_seconds": 11.667272882,
+      "reference_comparison": {
+        "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+        "source_revision": "HyperACE/5b1f8283125d5e4a3614d0e3635a636e09c84059;bs_roformer.py=48571e20d70ea8f245cffc6afbfa279f62042e7ba16fbaa3fe43dd2cbc25e1db",
+        "torch": "2.2.2",
+        "numpy": "1.26.4",
+        "platform": "macOS-15.7.7-x86_64-i386-64bit",
+        "threads": 6,
+        "samples": 132300,
+        "sample_rate": 44100,
+        "model_id": "hyperace-v2-inst",
+        "pytorch_forward_seconds": 7.630913280998357,
+        "comparisons": [
+          {
+            "stem": "instrumental",
+            "max_abs": 1.074373722076416e-05,
+            "mean_abs": 1.270327611442236e-07,
+            "waveform_snr_db": 115.83077771162783,
+            "status": "passed"
+          }
+        ],
+        "status": "passed"
+      }
+    },
+    {
+      "case": "mdx-cpu-3s",
+      "run": {
+        "model_id": "mdx-kara-2",
+        "backend": "cpu-flex",
+        "device": "Cpu",
+        "precision": "f32",
+        "audio_seconds": 3.0,
+        "samples_per_channel": 132300,
+        "chunks": 1,
+        "profile": "uvr-single-pass",
+        "input_pcm_sha256": "f05dcb894bbcea0d2f5e71381f4a50d4b9c9bbb78a5a2e57823d80a54ebc53a0",
+        "weights_sha256": "bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4",
+        "build_features": [
+          "onnx",
+          "wgpu",
+          "accelerate",
+          "convert",
+          "simd",
+          "cpu-opt"
+        ],
+        "conv_strategy": "backend"
+      },
+      "single_run_total_seconds": 4.145022776,
+      "reference_comparison": {
+        "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+        "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+        "weights_sha256": "bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4",
+        "model_id": "mdx-kara-2",
+        "ort": "1.20.1",
+        "torch": "2.2.2",
+        "telemetry": "disabled before session creation",
+        "ort_threads": 4,
+        "backend": "cpu-flex",
+        "samples": 132300,
+        "denoise": false,
+        "overlap_fraction": null,
+        "original_uvr_forwards": 2,
+        "rust_forwards": 1,
+        "reference_seconds": 4.144912240008125,
+        "max_abs": 6.556510925292969e-07,
+        "waveform_snr_db": 126.72512291665217,
+        "status": "passed"
+      }
+    },
+    {
+      "case": "mdx-wgpu-30s",
+      "run": {
+        "model_id": "mdx-kara-2",
+        "backend": "wgpu",
+        "device": "DiscreteGpu(0)",
+        "precision": "f32",
+        "audio_seconds": 30.0,
+        "samples_per_channel": 1323000,
+        "chunks": 6,
+        "profile": "uvr-single-pass",
+        "input_pcm_sha256": "e1168f5feb259561d9853729e564c2f5475313563bd3802100d56fa08fa46f05",
+        "weights_sha256": "bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4",
+        "build_features": [
+          "onnx",
+          "wgpu",
+          "accelerate",
+          "convert",
+          "simd",
+          "cpu-opt"
+        ],
+        "conv_strategy": "gemm"
+      },
+      "single_run_total_seconds": 9.120234807,
+      "reference_comparison": {
+        "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+        "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+        "weights_sha256": "bf32e15105a09c0f7dddd2b67346146334d6f3ecb399ed7638eba2ab07cbf5f4",
+        "model_id": "mdx-kara-2",
+        "ort": "1.20.1",
+        "torch": "2.2.2",
+        "telemetry": "disabled before session creation",
+        "ort_threads": 4,
+        "backend": "wgpu",
+        "samples": 1323000,
+        "denoise": false,
+        "overlap_fraction": null,
+        "original_uvr_forwards": 7,
+        "rust_forwards": 6,
+        "reference_seconds": 13.295936210997752,
+        "max_abs": 8.344650268554688e-07,
+        "waveform_snr_db": 127.66622357923953,
+        "status": "passed"
+      }
+    }
+  ],
+  "tracked_asset_paths": []
+}

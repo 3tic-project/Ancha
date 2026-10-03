@@ -3,6 +3,8 @@
 本轮把迁移包（提交 `f55bfb1`）搬到一台 Linux + NVIDIA 机器上，新增 CUDA 后端，并在不改变分离上下文、
 FP32 精度和数值语义的前提下做 CUDA 侧优化。全部 8 个模型（9 个输出）在 CUDA 上通过与之前相同的
 PyTorch / UVR 参考比对；所有速度数字都来自本机串行实测，profile 来自 Nsight Systems。
+第二轮用手写 CubeCL 内核替换 attention、投影 GEMM 与卷积（[手写 CUDA 内核](#手写-cuda-内核第二轮)），
+RoFormer 原生块再快 3.1–3.8×，整首歌全部模型从 61 分钟降到约 20 分钟。
 
 ## 环境
 
@@ -38,7 +40,8 @@ target/release/ancha separate NO_TRACK/runs/clip-3s.wav --model NO_TRACK/models/
 | 内核缓存 | 默认把 NVRTC 生成的 PTX 存到缓存根下 `ptx-sm<算力>/<模型文件名>/`（仓库内为 `target/`，仓库外为用户缓存目录 `cubecl/`）；cubecl.toml / Burn.toml 设置了 `[compilation] cache` 时尊重用户配置 |
 | 设备故障检查 `src/device.rs` | 记录 CubeCL 设备线程（`DSU-*` / `DSD-*`）的 panic，在加载后与每次模型调用后检查，失败即报错且不发布结果 |
 | 加载 | RoFormer 权重只读一次，SHA-256 在另一线程与解析、折叠、上传并行，摘要不符仍报 checksum 错误 |
-| 测试 | `tests/cuda_contracts.rs`（微型 BS / Mel 整条分离 CUDA 对 Flex < 1e-5、GEMM 卷积对 conv2d、无效序号）与 `tests/cuda_device_failure.rs`（超显存分配必须被报告），需 `--features cuda` 与真实 GPU；CI 只 `cargo check` |
+| 手写内核 `crates/ancha-models/src/fused` | 单遍 attention、带收尾的 GEMM、隐式 GEMM 卷积，以 Burn fusion 自定义算子接入，只在 CUDA 分派；见下文第二轮 |
+| 测试 | `tests/cuda_contracts.rs`（微型 BS / Mel 整条分离 CUDA 对 Flex < 1e-5，其中一组 64 宽 head 的模型走手写内核；attention / 门控 attention 对分块实现、GEMM 与各收尾对 Burn 算子、两种 GEMM 卷积对 conv2d，含不整块、跨步输入与不支持的形状；无效序号）与 `tests/cuda_device_failure.rs`（超显存分配必须被报告），需 `--features cuda` 与真实 GPU；CI 只 `cargo check` |
 
 ### 显存不足曾静默产出错误结果
 
@@ -54,7 +57,8 @@ CubeCL 0.10 在设备服务线程里分配显存并直接 unwrap。显存不足�
 
 同一块 CPU（Flex）结果为 vocals RMS 0.1826、峰值 1.0577。修复前后两行以退出码 0 发布了错误的 stems，
 2048 的“提速”只是 attention 没有被计算。现在两者都以“GPU device thread failed … out of device memory”失败，
-输出目录不出现。8 GB 显卡上原生 RoFormer 块应保持默认 512。
+输出目录不出现。走分块 attention 时（`--attention-kernel tiled`，或非 CUDA 后端）8 GB 显卡上原生 RoFormer 块应保持默认 512；
+CUDA 默认的单遍 attention 不分配 score 张量。
 
 ## 数值一致性
 
@@ -109,7 +113,54 @@ HyperACE voc 虽过门槛但只有 78.56 dB；Leap 与四个 MDX 正常。偏差
 
 明细见 [cuda-ablation.json](reports/cuda-ablation.json)。
 
+## 手写 CUDA 内核（第二轮）
+
+第一轮 profile 显示原生块里 MatMul 占 48–64%，softmax 前后对 score 张量的显存往返又占三分之一以上，而
+Pascal 上 CubeCL 的通用矩阵乘只有 cuBLAS 的约 1/3。第二轮用 CubeCL 手写 FP32 内核（`crates/ancha-models/src/fused`），
+以 Burn fusion 自定义算子接入，模型代码仍对 `B: Backend` 泛型，其它后端和不支持的形状自动回到原 Burn 路径。
+
+| 内核 | 做法 | 算子级实测（Tesla P4） |
+|---|---|---|
+| 单遍 attention | 每个 cube 处理一个 (group, head) 的 64 个 query，按 64 个 key 一块流式读，在线 softmax，score 不出寄存器 / 共享内存；128 线程，每线程 4 行 × 8 列 | Leap 时间轴 90×1722 token：分块物化 1.79 s → 0.200 s（2.73 TFLOPS），最大差 1.3e-6 |
+| GEMM | 128×128 输出块、k 步长 8、寄存器中转的双缓冲共享内存，Aᵀ 存放使每种收尾都不超过 128 寄存器（每 SM 两个 cube） | 155k 行投影 3.7–4.1 TFLOPS，Burn 1.3–1.8 TFLOPS，与第一轮测得的 cuBLAS（3.6–4.4）相当 |
+| 隐式 GEMM 卷积 | 装载每个 k 块时从输入直接取 patch，不再物化 patch 矩阵（HyperACE 全分辨率层原需约 1 GB）；按 16/48/64 通道取块，卷积几何为编译期参数 | MDX 输出与原 GEMM 卷积逐位一致 |
+
+在此之上把整个 RoFormer 块重排成 5 次内核调用：q / k / v / gate 一次 GEMM（RoPE 在其收尾中完成）、
+带 sigmoid 门控的 attention 直接读这块打包投影、输出投影与前馈两层 GEMM 在收尾中加 bias、做 erf-GELU 和残差。
+旋转、门控、残差不再各自扫一遍显存，score 张量也不再分配，所以 `--max-score-mib` 对 CUDA 默认路径不起作用
+（run.json 的 score 估计为 0）。
+
+原生块单次模型调用（3 秒片段，缓存已预热）随各步变化：
+
+| 提交 | 改动 | Leap | Deux | HyperACE voc | MDX HQ 2 | MDX KARA 2 | MDX 9482 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| `404ec9c` | 第一轮结束 | 28.50 s | 11.68 s | 17.94 s | 0.96 s | 0.62 s | 0.40 s |
+| `7eaee28` | 单遍 attention + 投影 GEMM | 10.08 s | 4.26 s | 7.81 s | | | |
+| `f644f5d` | 整块重排与收尾融合 | 7.88 s | 3.34 s | 6.57 s | | | |
+| `5d5af29` | attention 改 4×8 寄存器块 | 7.59 s | 3.27 s | 6.44 s | | | |
+| `8d1f14d` / `d8ac0d2` | 隐式 GEMM 卷积及调优 | 7.59 s | 3.27 s | 5.70 s | 0.55 s | 0.37 s | 0.26 s |
+
+Leap、Deux、HyperACE 分别快 3.8×、3.6×、3.1×，MDX 快 1.5–1.7×。只有 attention 一项时 Leap 为 13.41 s。
+
+- 开关：`--attention-kernel auto|fused|tiled`、`--gemm-kernel auto|custom|burn`，`auto` 只在 CUDA 启用；
+  run.json 记录 `attention_kernel` / `gemm_kernel`。`tiled` + `burn` 即第一轮路径（Leap 原生块 28.54 s），用于消融。
+  卷积内核在 CUDA 上随 `--conv-strategy gemm`（默认）启用，深度 `c·kh·kw` 不是 8 的倍数时（如 MDX 首层）走原 GEMM 卷积。
+- 只在 CUDA 上分派：同一批内核在 WGPU（Vulkan，同一块 P4）上输出错误（Deux 片段 SDR −5 dB），CubeCL 的 WGPU 目标不支持
+  GEMM 所用的共享内存向量重解释，因此显式请求时 CLI 报错，WGPU 行为与之前逐位相同。
+- 寄存器决定占用率：GEMM 超过 128 个寄存器时每个 SM 只能放一个 cube，同样的算术慢约 1.6 倍（profile 中
+  `registersPerThread` 144 对 128）；改为 Aᵀ 布局后所有收尾变体都是 122–126 个。attention 受 48 KiB 共享内存限制，
+  每 SM 两个 cube，因此 128 线程版本可用到 255 个寄存器（实际 204、无溢出）。
+- 数值：单个内核对 Burn 实现的差异在 1e-6 量级（契约测试门槛 1e-5）。`d8ac0d2` 重跑参考比对仍为 8/8：
+  Leap 6.51e-6 / 107.28 dB，Deux 7.60e-7 / 1.07e-6（126.04 / 122.23 dB），HyperACE voc 3.34e-6 / 121.52 dB，
+  HyperACE inst 4.35e-6 / 118.56 dB，四个 MDX 与上表逐位相同。
+
+迁移包中的第二轮参考比对（8/8）与整曲运行汇总已补入
+[cuda-kernels.json](reports/cuda-kernels.json)，保留原始报告摘要与二进制 SHA；算子级微基准仅有本节记录，
+迁移包未提供对应的结构化报告。汇总未记录构建提交，不能把整曲结果直接视为 `d8ac0d2` 的单次测速。
+
 ## 速度（Linux 三后端）
+
+本节为第一轮（手写内核之前）的三后端对比；CUDA 当前数字见上一节与下面的整首歌示例。
 
 同一二进制（`fa6efbf`）、同一 PCM / 权重 / 上下文，串行运行；GPU 每行先预热一遍，再测两遍取中位数。
 WGPU 与 CUDA 跑在同一块 Tesla P4 上（WGPU 走 Vulkan），CPU 为 Burn Flex（24 个主机线程）。
@@ -188,6 +239,22 @@ RoFormer 短块为 `--chunk-samples 132300 --overlap 1`，原生块为 manifest 
 
 明细（含每块耗时与两两 SDR）见 [full-song-cuda.json](reports/full-song-cuda.json)。
 
+迁移包另有第二轮手写内核的整曲结果（同一首歌、8 个模型均完成）：总计 1189.49 秒（19.82 分钟），
+峰值 RSS 2328 MiB。各模型总耗时如下；这是远端记录，本地 macOS 合入时未执行 CUDA。
+
+| 模型 | 第二轮总耗时 | RTF |
+|---|---:|---:|
+| Leap Xe voc | 245.23 s | 0.883 |
+| Deux | 155.76 s | 0.561 |
+| HyperACE v2 voc | 355.51 s | 1.281 |
+| HyperACE v2 inst | 355.80 s | 1.282 |
+| MDX 9482 | 13.79 s | 0.050 |
+| MDX KARA | 13.77 s | 0.050 |
+| MDX KARA 2 | 19.85 s | 0.072 |
+| MDX Inst HQ 2 | 29.71 s | 0.107 |
+
+原始汇总的脱敏副本与来源摘要见 [cuda-kernels.json](reports/cuda-kernels.json) 的 `full_song` / `provenance`。
+
 ## profile 记录
 
 Nsight Systems 2025.5.2（`-t cuda`）记录真实 GPU 内核时长，不做逐内核同步；3 秒片段，缓存已预热，单块。
@@ -220,11 +287,19 @@ Nsight Systems 2025.5.2（`-t cuda`）记录真实 GPU 内核时长，不做逐�
 | Burn 融合 attention（autotune 选 flash-unit / fallback），按组分块调用 | Leap 短块 2.82 s 对 2.63 s，原生块 35.1 s 对 28.6 s，输出一致 | 未保留 |
 | `--max-score-mib` 1024 / 2048 | 8 GB 显存不足，修复前静默出错 | 保持 512，并加设备故障检查 |
 | MDX 用 Burn conv2d | 1.71 s 对 GEMM 0.65 s | auto 继续选 GEMM |
+| attention 内核用 fast-math `__expf` | 90×1722 token 0.2099 → 0.2058 s（2%） | 精度变差、收益小，未保留 |
+| attention 在内核里做 RoPE | 每个 query 块重新旋转全部 key，寄存器 80 → 103 | 移到 GEMM 收尾，每个元素只旋转一次 |
+| attention score 循环全展开 | 0.200 → 0.399 s（寄存器溢出） | 未保留 |
+| attention PV 循环展开 4 | 0.2005 → 0.1965 s（2%，在噪声内） | 未保留 |
+| 自定义内核在 WGPU 上分派 | Deux 片段输出 SDR −5 dB | 只在 CUDA 分派 |
 
 ## 边界
 
-- 只验证了一块 Pascal GPU（无 Tensor Core）。Volta 及以后的 GPU 会让 CubeCL 选到 cmma / mma 矩阵乘，
-  其速度与数值都需要在对应硬件上另行验证；本机 GPU 停在 1113 MHz 应用时钟，未调整。
+- 只验证了一块 Pascal GPU（无 Tensor Core）。手写内核是 FP32 SIMT 实现，块大小与寄存器预算按 sm_61（48 KiB
+  共享内存、64K 寄存器 / SM）调整；其它架构上需要重新测速并重跑参考比对，也未利用 Volta 以后的 Tensor Core。
+  本机 GPU 停在 1113 MHz 应用时钟，未调整。
+- 手写内核只在 CUDA 分派；CPU / WGPU 仍是原 Burn 路径。attention 内核只处理 head_dim 64，GEMM 要求
+  `k % 8 == 0`、`m % 128 == 0`，卷积要求 `c·kh·kw % 8 == 0`，其余形状自动回退。
 - PTX 缓存与 CubeCL 版本、算力绑定；PTX 由驱动在每个进程 JIT。降级驱动后若加载失败，删除对应 `ptx-sm*` 目录即可。
 - 设备故障检查依赖 CubeCL 0.10 的设备线程命名；升级 Burn / CubeCL 时需复核。没有 profiler 级显存峰值。
 - 本机 WGPU（NVIDIA Vulkan）对 Deux / HyperACE inst 比对失败，偶发在进程退出时驱动段错误；未定位，属已有问题。
@@ -232,12 +307,13 @@ Nsight Systems 2025.5.2（`-t cuda`）记录真实 GPU 内核时长，不做逐�
 
 ## 下一步（按优先级）
 
-1. GEMM：Pascal 上 CubeCL 矩阵乘约为 cuBLAS 的 1/3。为 CUDA 增加经 cuBLAS SGEMM 的投影 / 注意力矩阵乘
-   （需要从 Burn fusion 张量取出设备指针并处理流同步），按上面的测量，Leap 短块的 GEMM 可从约 1.6 秒降到约 0.6 秒；
-   或在有 Tensor Core 的 GPU 上验证 cmma 路径（TF32 / FP16 属于不同精度配置，需单独做 parity）。
-2. 原生长块的 softmax 显存往返（超过三分之一时间）：分块在线 softmax 或融合内核，需重新做数值比对。
-3. 加载：SHA-256 在无 SHA 扩展的 CPU 上是 Deux 加载的下限，可考虑按文件身份缓存已验证摘要（需要权衡完整性语义）。
-4. WGPU / NVIDIA Vulkan 上 Deux 与 HyperACE inst 的数值偏差：逐层导出中间张量与 CPU 对比定位算子。
+1. attention 内核：原生块里仍占 GPU 时间的约一半（2.7 TFLOPS，约峰值的 48%）。拆解实验表明 score 循环、
+   PV 循环、其余（装载、softmax、同步）大致各占 42% / 39% / 19%，循环受共享内存带宽限制；可试更大的寄存器块
+   （需要压缩 48 KiB 内的共享内存布局）或在有 Tensor Core 的 GPU 上用 mma（不同精度配置，需单独 parity）。
+2. HyperACE SegmModel 的 InstanceNorm 归约与逐元素运算（约 0.5 s / 块）和深度可分离卷积。
+3. 时间轴 / 频率轴之间的转置拷贝（Leap 约 0.18 s / 块）：让 GEMM 直接按跨步读写。
+4. 加载：SHA-256 在无 SHA 扩展的 CPU 上是 Deux 加载的下限，可考虑按文件身份缓存已验证摘要（需要权衡完整性语义）。
+5. WGPU / NVIDIA Vulkan 上 Deux 与 HyperACE inst 的数值偏差：逐层导出中间张量与 CPU 对比定位算子。
 
 ## 复现
 
@@ -250,7 +326,13 @@ target/release/examples/separate_all --backend cuda --start 30 --duration 30   #
 target/release/examples/separate_all --backend cuda                            # 整首歌、全部模型
 nsys profile -t cuda -o leap target/release/ancha separate NO_TRACK/runs/clip-3s.wav \
   --model NO_TRACK/models/leap-xe-voc --backend cuda --chunk-samples 132300 --overlap 1 --output /tmp/leap
+# 手写内核：算子级对比（groups tokens [次数] / 行数）与整模型消融。
+cargo run --release -p ancha-models --features cuda --example fused_attention -- 90 1722
+cargo run --release -p ancha-models --features cuda --example fused_linear -- 154980
+target/release/ancha separate NO_TRACK/runs/clip-3s.wav --model NO_TRACK/models/leap-xe-voc \
+  --backend cuda --attention-kernel tiled --gemm-kernel burn --output /tmp/leap-round1
 ```
 
 本轮的 nsys 汇总、预热与实验脚本保留在 `NO_TRACK/speed`（`cuda_profile.sh`、`nsys_summary.py`、
-`gemm_ceiling.py`、`cuda_warm.sh`）。
+`gemm_ceiling.py`、`cuda_warm.sh`）。生成的 CUDA 源码可用 `CUBECL_DEBUG_LOG=/tmp/cubecl.log` 导出，
+再用 `nvcc -arch=sm_61 -cubin --resource-usage` 查看寄存器与溢出；nsys 导出的 `registersPerThread` 是实际值。

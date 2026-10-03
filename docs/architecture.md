@@ -6,7 +6,7 @@ chunk → STFT → RoFormer → iSTFT → OLA → residual → WAV / run.json。
 | 位置 | 职责 |
 |---|---|
 | `crates/ancha-audio` | Symphonia 解码、指定片段、Rubato sinc 重采样、RealFFT、分块和 OLA |
-| `crates/ancha-models` | 版本化 manifest、严格权重加载、BS/Mel/HyperACE forward、经典 MDX ONNX 图、转换工具 |
+| `crates/ancha-models` | 版本化 manifest、严格权重加载、BS/Mel/HyperACE forward、经典 MDX ONNX 图、转换工具；`fused` 为 CUDA 手写 CubeCL 内核 |
 | `crates/ancha-kernels` | 原实验包的标量数学参考、online softmax、融合与缓存准入测试 |
 | `src` | 运行时后端选择与各后端默认值（`ancha::backend`）、资源限额、任务取消、CLI、运行报告、性能消融、CUDA 预检与内核缓存、GPU 故障检查 |
 | `examples` | SDK 调用示例：单模型分离；全部模型整曲分离并汇总性能 |
@@ -128,3 +128,8 @@ Tensor Core 的 GPU（如 RX 580、Pascal 的 Tesla P4）上只能用直接卷�
 改写为 patch gather + 一次 GEMM；CPU 仍用 Flex 原生卷积。HyperACE SegmModel 的非分组卷积只在 CUDA 上默认走同一 GEMM
 改写（深度可分离层保持 conv2d）。`--conv-strategy gemm|backend` 可做同二进制消融。
 CUDA 的设备预检、按架构与模型分区的 PTX 缓存见 `src/cuda.rs` 与 [CUDA 记录](cuda.md)。
+
+CUDA 上 RoFormer 块与卷积由 `ancha-models::fused` 的手写 CubeCL 内核执行：单遍 attention、带 bias / GELU /
+RoPE / 残差收尾的 GEMM、隐式 GEMM 卷积。入口对 `B: Backend` 泛型，只有 `B` 是 `burn::backend::Cuda` 且形状受支持时
+以 Burn fusion 自定义算子排队，否则返回 `None`，调用方继续走原 Burn 路径；`AttentionPlan` 的
+`fused_attention` / `custom_gemm` 控制 RoFormer 是否使用它们（CLI `--attention-kernel` / `--gemm-kernel`）。

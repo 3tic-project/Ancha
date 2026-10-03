@@ -20,8 +20,9 @@ float32 WAV 输出和可追溯的 run.json。模型与素材均保留在 NO_TRAC
 HyperACE 与经典 MDX 的适配、使用和任务语义见 [新增适配文档](docs/adapters.md)。
 CPU / WGPU 推理速度审计、算子折叠与当前实测见 [速度优化记录](docs/speed-optimization.md)；
 CUDA 后端的适配、优化、profile 与 Linux 三后端实测见 [CUDA 记录](docs/cuda.md)；
-上一轮速度见 [适配性能记录](docs/adapters-performance.md)。目前仍未完成 Leap inst 独立验收，
-CUDA 的 GEMM 仍为 CubeCL 通用内核（未接 cuBLAS / Tensor Core）。
+上一轮速度见 [适配性能记录](docs/adapters-performance.md)。目前仍未完成 Leap inst 独立验收。
+CUDA 上 RoFormer 的 attention、投影和各模型的卷积由手写 CubeCL FP32 内核执行（未用 cuBLAS / Tensor Core），
+Tesla P4 上原生块比通用路径快 3.1–3.8×；WGPU / CPU 仍走 Burn 通用路径。
 早期 Leap / Deux 的测试和优化保留在 [性能记录](docs/performance.md)。
 
 ## 构建与本机使用

@@ -1,0 +1,1147 @@
+{
+  "scope": "Imported CUDA hand-written-kernel parity and full-song records from the transfer workspace; no CUDA execution on the macOS integration host. Operator microbenchmarks quoted in docs/cuda.md were not packaged as a structured report.",
+  "provenance": {
+    "transfer_source_head": "d8ac0d2a5c60902c3e3bc89bcafcc2105da5f58a",
+    "imported_on": "2026-10-03",
+    "source_reports": [
+      {
+        "path": "NO_TRACK/runs/parity-fused9/summary.json",
+        "sha256": "b4a2ee9bdf8292c1b00dfa87451ea407b1263e483e8f8abe5171692aa441167b"
+      },
+      {
+        "path": "NO_TRACK/runs/examples/full-song-cuda-kernels/summary.json",
+        "sha256": "350a75b563e11555ef64c43baeaa632f3942f41d8a7cb4fb1c242d71c5eb4be5"
+      }
+    ],
+    "binary_commit": "not recorded by the source summaries"
+  },
+  "parity": {
+    "scope": "Rust run vs pinned PyTorch (RoFormer, one 132300-sample chunk) and UVR + ONNX Runtime (MDX); threshold max_abs < 1e-3 and waveform SNR > 50 dB; implementation consistency, not SDR",
+    "rust_binary_sha256": "a32eb8024876c5222e22a5ab051e2eae2b3adfc78516ffc64e50e86a48996f77",
+    "passed": 8,
+    "total": 8,
+    "entries": [
+      {
+        "run": "UVR-MDX-NET-Inst_HQ_2-cuda",
+        "status": "passed",
+        "rust_backend": "cuda",
+        "rust_device": "Cuda(0)",
+        "model_id": "mdx-inst-hq-2",
+        "rust_profile": "uvr-single-pass",
+        "linear_layout": null,
+        "conv_strategy": "gemm",
+        "reference": {
+          "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+          "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+          "torch": "2.2.2+cpu",
+          "ort": "1.20.1",
+          "ort_threads": 4
+        },
+        "comparisons": [
+          {
+            "stem": "instrumental",
+            "max_abs": 9.462237358093262e-07,
+            "waveform_snr_db": 122.5032567209197,
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "run": "UVR_MDXNET_9482-cuda",
+        "status": "passed",
+        "rust_backend": "cuda",
+        "rust_device": "Cuda(0)",
+        "model_id": "mdx-9482",
+        "rust_profile": "uvr-single-pass",
+        "linear_layout": null,
+        "conv_strategy": "gemm",
+        "reference": {
+          "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+          "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+          "torch": "2.2.2+cpu",
+          "ort": "1.20.1",
+          "ort_threads": 4
+        },
+        "comparisons": [
+          {
+            "stem": "all_vocals",
+            "max_abs": 5.960464477539062e-07,
+            "waveform_snr_db": 126.39800935798138,
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "run": "UVR_MDXNET_KARA-cuda",
+        "status": "passed",
+        "rust_backend": "cuda",
+        "rust_device": "Cuda(0)",
+        "model_id": "mdx-kara",
+        "rust_profile": "uvr-single-pass",
+        "linear_layout": null,
+        "conv_strategy": "gemm",
+        "reference": {
+          "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+          "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+          "torch": "2.2.2+cpu",
+          "ort": "1.20.1",
+          "ort_threads": 4
+        },
+        "comparisons": [
+          {
+            "stem": "lead_vocals",
+            "max_abs": 3.8743019104003906e-07,
+            "waveform_snr_db": 129.3630984575044,
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "run": "UVR_MDXNET_KARA_2-cuda",
+        "status": "passed",
+        "rust_backend": "cuda",
+        "rust_device": "Cuda(0)",
+        "model_id": "mdx-kara-2",
+        "rust_profile": "uvr-single-pass",
+        "linear_layout": null,
+        "conv_strategy": "gemm",
+        "reference": {
+          "scope": "pinned UVR DSP + CPU ONNX Runtime waveform parity; not clean-stem SDR",
+          "source_revision": "UVR/5517e0cf0d1acd16a1618eeedec596957523f9e1",
+          "torch": "2.2.2+cpu",
+          "ort": "1.20.1",
+          "ort_threads": 4
+        },
+        "comparisons": [
+          {
+            "stem": "karaoke_mix",
+            "max_abs": 6.556510925292969e-07,
+            "waveform_snr_db": 127.04619846840632,
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "run": "deux-cuda",
+        "status": "passed",
+        "rust_backend": "cuda",
+        "rust_device": "fusion<cubecl<cuda>>",
+        "model_id": "deux",
+        "rust_profile": "custom-context",
+        "linear_layout": "flattened",
+        "conv_strategy": null,
+        "reference": {
+          "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+          "source_revision": "MSST/84b1eac0887756b4f1a9d7a1ff49105939749ed2",
+          "torch": "2.2.2+cpu",
+          "numpy": "1.26.4",
+          "threads": 6
+        },
+        "comparisons": [
+          {
+            "stem": "vocals",
+            "max_abs": 7.599592208862305e-07,
+            "waveform_snr_db": 126.03950962010066,
+            "status": "passed"
+          },
+          {
+            "stem": "instrumental",
+            "max_abs": 1.0728836059570312e-06,
+            "waveform_snr_db": 122.23103656633731,
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "run": "hace-inst-cuda",
+        "status": "passed",
+        "rust_backend": "cuda",
+        "rust_device": "fusion<cubecl<cuda>>",
+        "model_id": "hyperace-v2-inst",
+        "rust_profile": "custom-context",
+        "linear_layout": "flattened",
+        "conv_strategy": "gemm",
+        "reference": {
+          "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+          "source_revision": "HyperACE/5b1f8283125d5e4a3614d0e3635a636e09c84059;bs_roformer.py=48571e20d70ea8f245cffc6afbfa279f62042e7ba16fbaa3fe43dd2cbc25e1db",
+          "torch": "2.2.2+cpu",
+          "numpy": "1.26.4",
+          "threads": 6
+        },
+        "comparisons": [
+          {
+            "stem": "instrumental",
+            "max_abs": 4.351139068603516e-06,
+            "waveform_snr_db": 118.55942276659897,
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "run": "hace-voc-cuda",
+        "status": "passed",
+        "rust_backend": "cuda",
+        "rust_device": "fusion<cubecl<cuda>>",
+        "model_id": "hyperace-v2-voc",
+        "rust_profile": "custom-context",
+        "linear_layout": "flattened",
+        "conv_strategy": "gemm",
+        "reference": {
+          "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+          "source_revision": "HyperACE/5b1f8283125d5e4a3614d0e3635a636e09c84059;bs_roformer.py=48571e20d70ea8f245cffc6afbfa279f62042e7ba16fbaa3fe43dd2cbc25e1db",
+          "torch": "2.2.2+cpu",
+          "numpy": "1.26.4",
+          "threads": 6
+        },
+        "comparisons": [
+          {
+            "stem": "vocals",
+            "max_abs": 3.337860107421875e-06,
+            "waveform_snr_db": 121.52277960773843,
+            "status": "passed"
+          }
+        ]
+      },
+      {
+        "run": "leap-cuda",
+        "status": "passed",
+        "rust_backend": "cuda",
+        "rust_device": "fusion<cubecl<cuda>>",
+        "model_id": "leap-xe-voc",
+        "rust_profile": "custom-context",
+        "linear_layout": "flattened",
+        "conv_strategy": null,
+        "reference": {
+          "scope": "single-chunk FP32 waveform parity; not SDR or dataset quality evaluation",
+          "source_revision": "MSST/84b1eac0887756b4f1a9d7a1ff49105939749ed2",
+          "torch": "2.2.2+cpu",
+          "numpy": "1.26.4",
+          "threads": 6
+        },
+        "comparisons": [
+          {
+            "stem": "vocals",
+            "max_abs": 6.511807441711426e-06,
+            "waveform_snr_db": 107.28308003419178,
+            "status": "passed"
+          }
+        ]
+      }
+    ]
+  },
+  "full_song": {
+    "ancha_version": "0.1.0",
+    "backend": "cuda",
+    "build_features": [
+      "wgpu",
+      "cuda",
+      "onnx",
+      "cpu-opt"
+    ],
+    "device": {
+      "compute_capability": 61,
+      "memory_gib": 7.4281005859375,
+      "name": "Tesla P4",
+      "ordinal": 0
+    },
+    "host": {
+      "cpu": "Intel(R) Xeon(R) CPU E5-2673 v3 @ 2.40GHz",
+      "logical_cores": 24,
+      "memory": "16006804 kB",
+      "platform": "linux-x86_64"
+    },
+    "input": {
+      "bytes": 11160744,
+      "duration_seconds": null,
+      "path": "<local-audio>",
+      "start_seconds": 0.0
+    },
+    "models": [
+      {
+        "audio_seconds": 277.5703401360544,
+        "chunks": 30,
+        "context": {
+          "chunk_samples": 881559,
+          "overlap": 2
+        },
+        "description": "BS-RoFormer Leap Xe: vocals, residual instrumental",
+        "device_memory_in_use_mib": 3436.125,
+        "family": "bs-roformer",
+        "first_call_seconds": 7.720336474,
+        "model_forwards": null,
+        "model_id": "leap-xe-voc",
+        "model_rtf": 0.8528045259661825,
+        "name": "leap-xe-voc",
+        "profile": "native-context",
+        "rtf": 0.8834935545159357,
+        "settings": {
+          "attention_kernel": "fused",
+          "conv_strategy": null,
+          "gemm_kernel": "custom",
+          "host_threads": 1,
+          "linear_layout": "flattened",
+          "tiles": [
+            5,
+            1722,
+            1722,
+            90
+          ]
+        },
+        "slowest_steady_call_seconds": 8.000534177,
+        "status": "ok",
+        "steady_call_seconds": 7.915215481,
+        "stems": [
+          {
+            "name": "vocals",
+            "origin": "predicted",
+            "peak": 1.219123363494873,
+            "rms": 0.1847824436017109
+          },
+          {
+            "name": "instrumental",
+            "origin": "residual",
+            "peak": 1.3291559219360352,
+            "rms": 0.24758588835538847
+          }
+        ],
+        "timings": {
+          "decode_seconds": 0.616912972,
+          "istft_seconds": 2.0531400580000003,
+          "model_call_seconds": [
+            7.720336474,
+            7.729434317,
+            7.768157313,
+            7.808694949,
+            7.799852641,
+            7.843476288,
+            7.805482136,
+            7.838584191,
+            7.834519515,
+            7.886013065,
+            7.923073295,
+            7.952148483,
+            7.915215481,
+            7.881784863,
+            7.923764545,
+            7.908602523,
+            7.973869276,
+            7.93915581,
+            7.893470421,
+            7.921319569,
+            7.961770038,
+            7.954482381,
+            7.9235091010000005,
+            7.993051148,
+            7.92963335,
+            7.946317204,
+            7.940670324,
+            7.9067237299999995,
+            8.000534177,
+            7.889595734
+          ],
+          "model_load_seconds": 1.624253489,
+          "model_seconds": 236.71324234199994,
+          "overlap_seconds": 0.20314543199999996,
+          "resample_seconds": 0.015129158,
+          "stft_seconds": 2.2580319060000007,
+          "total_seconds": 245.231606435,
+          "write_seconds": 0.384249211
+        },
+        "wall_seconds": 245.237225907
+      },
+      {
+        "audio_seconds": 277.5703401360544,
+        "chunks": 45,
+        "context": {
+          "chunk_samples": 573300,
+          "overlap": 2
+        },
+        "description": "Mel-Band RoFormer Deux: vocals and instrumental",
+        "device_memory_in_use_mib": 3468.125,
+        "family": "mel-band-roformer",
+        "first_call_seconds": 3.366745254,
+        "model_forwards": null,
+        "model_id": "deux",
+        "model_rtf": 0.5064421080908584,
+        "name": "deux",
+        "profile": "native-context",
+        "rtf": 0.5611531235457385,
+        "settings": {
+          "attention_kernel": "fused",
+          "conv_strategy": null,
+          "gemm_kernel": "custom",
+          "host_threads": 1,
+          "linear_layout": "flattened",
+          "tiles": [
+            9,
+            1301,
+            1301,
+            60
+          ]
+        },
+        "slowest_steady_call_seconds": 3.141521905,
+        "status": "ok",
+        "steady_call_seconds": 3.119068006,
+        "stems": [
+          {
+            "name": "vocals",
+            "origin": "predicted",
+            "peak": 1.2365437746047974,
+            "rms": 0.1871406508854312
+          },
+          {
+            "name": "instrumental",
+            "origin": "predicted",
+            "peak": 1.3766272068023682,
+            "rms": 0.2486416522093454
+          }
+        ],
+        "timings": {
+          "decode_seconds": 0.621871191,
+          "istft_seconds": 4.45492035,
+          "model_call_seconds": [
+            3.366745254,
+            3.102821942,
+            3.119421563,
+            3.113696905,
+            3.09800352,
+            3.135465302,
+            3.100818329,
+            3.110495423,
+            3.098974661,
+            3.105124702,
+            3.113488168,
+            3.104320085,
+            3.133070122,
+            3.102998663,
+            3.132220376,
+            3.126689753,
+            3.116467679,
+            3.141521905,
+            3.120762228,
+            3.117964134,
+            3.113916183,
+            3.128057713,
+            3.115217306,
+            3.123602197,
+            3.11217408,
+            3.13616133,
+            3.102249366,
+            3.127433988,
+            3.106415052,
+            3.09710861,
+            3.122635108,
+            3.133639849,
+            3.13189252,
+            3.104712916,
+            3.134309283,
+            3.124735265,
+            3.1231149990000002,
+            3.1184749370000002,
+            3.130036404,
+            3.134827923,
+            3.119068006,
+            3.122481467,
+            3.120360768,
+            3.112445053,
+            3.117167165
+          ],
+          "model_load_seconds": 5.535805602,
+          "model_seconds": 140.57330820200002,
+          "overlap_seconds": 0.4088855079999999,
+          "resample_seconds": 0.015197006,
+          "stft_seconds": 2.505391420000001,
+          "total_seconds": 155.759463371,
+          "write_seconds": 0.35370161
+        },
+        "wall_seconds": 155.765530225
+      },
+      {
+        "audio_seconds": 277.5703401360544,
+        "chunks": 58,
+        "context": {
+          "chunk_samples": 960000,
+          "overlap": 4
+        },
+        "description": "HyperACE v2: vocals, residual instrumental",
+        "device_memory_in_use_mib": 4592.125,
+        "family": "hyperace-v2",
+        "first_call_seconds": 5.8903097760000005,
+        "model_forwards": null,
+        "model_id": "hyperace-v2-voc",
+        "model_rtf": 1.230260074396341,
+        "name": "hyperace-v2-voc",
+        "profile": "native-context",
+        "rtf": 1.2807970741353052,
+        "settings": {
+          "attention_kernel": "fused",
+          "conv_strategy": "gemm",
+          "gemm_kernel": "custom",
+          "host_threads": 1,
+          "linear_layout": "flattened",
+          "tiles": [
+            4,
+            1876,
+            1876,
+            62
+          ]
+        },
+        "slowest_steady_call_seconds": 5.934923212,
+        "status": "ok",
+        "steady_call_seconds": 5.886968411,
+        "stems": [
+          {
+            "name": "vocals",
+            "origin": "predicted",
+            "peak": 1.2497045993804932,
+            "rms": 0.18642690870936324
+          },
+          {
+            "name": "instrumental",
+            "origin": "residual",
+            "peak": 1.3191871643066406,
+            "rms": 0.24650115589057833
+          }
+        ],
+        "timings": {
+          "decode_seconds": 0.622915585,
+          "istft_seconds": 3.828658244,
+          "model_call_seconds": [
+            5.8903097760000005,
+            5.884885892,
+            5.831253336,
+            5.895009996,
+            5.841344025,
+            5.89889431,
+            5.899353997,
+            5.88508878,
+            5.873535899,
+            5.889080097,
+            5.909912889,
+            5.880326256,
+            5.850648581,
+            5.932195913,
+            5.893895544,
+            5.8859154270000005,
+            5.874487469,
+            5.8662085919999996,
+            5.853100274,
+            5.891187879,
+            5.913147517,
+            5.887502243,
+            5.892879821,
+            5.916461662,
+            5.891379473,
+            5.891367743,
+            5.88797247,
+            5.907452352,
+            5.904578807,
+            5.879919806,
+            5.874685811,
+            5.878373933,
+            5.873226784,
+            5.905514965,
+            5.899838809,
+            5.881884709,
+            5.885169288,
+            5.868349309,
+            5.880330114,
+            5.89072455,
+            5.879865484,
+            5.92818161,
+            5.886968411,
+            5.909435524,
+            5.903185332,
+            5.912060022,
+            5.869829435,
+            5.844159075,
+            5.899436496,
+            5.879253629,
+            5.908620226,
+            5.861253894,
+            5.877023851,
+            5.870276994,
+            5.934923212,
+            5.881608784,
+            5.931318237,
+            5.868911992
+          ],
+          "model_load_seconds": 1.8455247890000002,
+          "model_seconds": 341.483707306,
+          "overlap_seconds": 0.37878847800000004,
+          "resample_seconds": 0.015446398,
+          "stft_seconds": 4.943933654999999,
+          "total_seconds": 355.511279513,
+          "write_seconds": 0.391925602
+        },
+        "wall_seconds": 355.517976802
+      },
+      {
+        "audio_seconds": 277.5703401360544,
+        "chunks": 58,
+        "context": {
+          "chunk_samples": 960000,
+          "overlap": 4
+        },
+        "description": "HyperACE v2: instrumental, residual vocals",
+        "device_memory_in_use_mib": 4592.125,
+        "family": "hyperace-v2",
+        "first_call_seconds": 5.862678381,
+        "model_forwards": null,
+        "model_id": "hyperace-v2-inst",
+        "model_rtf": 1.2313229381765824,
+        "name": "hyperace-v2-inst",
+        "profile": "native-context",
+        "rtf": 1.2818217668955643,
+        "settings": {
+          "attention_kernel": "fused",
+          "conv_strategy": "gemm",
+          "gemm_kernel": "custom",
+          "host_threads": 1,
+          "linear_layout": "flattened",
+          "tiles": [
+            4,
+            1876,
+            1876,
+            62
+          ]
+        },
+        "slowest_steady_call_seconds": 5.947337471,
+        "status": "ok",
+        "steady_call_seconds": 5.891635195,
+        "stems": [
+          {
+            "name": "instrumental",
+            "origin": "predicted",
+            "peak": 1.385593056678772,
+            "rms": 0.24999871315575253
+          },
+          {
+            "name": "vocals",
+            "origin": "residual",
+            "peak": 1.1855350732803345,
+            "rms": 0.18077640177982807
+          }
+        ],
+        "timings": {
+          "decode_seconds": 0.620451961,
+          "istft_seconds": 3.8616157100000006,
+          "model_call_seconds": [
+            5.862678381,
+            5.897787041,
+            5.892694938,
+            5.845952774,
+            5.879102362,
+            5.853278111,
+            5.922975094,
+            5.885461761,
+            5.895922525,
+            5.924081407,
+            5.838448582,
+            5.888240555,
+            5.869660488,
+            5.874903743,
+            5.921458958,
+            5.882953891,
+            5.886052928,
+            5.928907982,
+            5.875488028,
+            5.868924077,
+            5.901064369,
+            5.8785119869999996,
+            5.89687222,
+            5.899185216,
+            5.881573904,
+            5.904990064,
+            5.89879727,
+            5.883559854,
+            5.863130119,
+            5.943275296,
+            5.867618251,
+            5.874987102,
+            5.927949464,
+            5.891594321,
+            5.898295903,
+            5.892289509,
+            5.891635195,
+            5.936799308,
+            5.946705162,
+            5.900634455,
+            5.947337471,
+            5.869946327,
+            5.918769507,
+            5.876101116,
+            5.875959056,
+            5.888118985,
+            5.894665574,
+            5.898805288,
+            5.909993447,
+            5.867935967,
+            5.886058269,
+            5.881815466,
+            5.877827239,
+            5.865332661,
+            5.8994843150000005,
+            5.925662901,
+            5.917451741,
+            5.903018842
+          ],
+          "model_load_seconds": 1.82702739,
+          "model_seconds": 341.7787267669999,
+          "overlap_seconds": 0.3792954410000001,
+          "resample_seconds": 0.016118338,
+          "stft_seconds": 4.959880997999999,
+          "total_seconds": 355.795703831,
+          "write_seconds": 0.351503014
+        },
+        "wall_seconds": 355.804535674
+      },
+      {
+        "audio_seconds": 277.5703401360544,
+        "chunks": 49,
+        "context": {
+          "chunk_samples": 261120,
+          "step_samples": 254976
+        },
+        "description": "MDX 9482: all vocals, residual instrumental",
+        "device_memory_in_use_mib": 4592.125,
+        "family": "classic-mdx",
+        "first_call_seconds": 0.222888072,
+        "model_forwards": 49,
+        "model_id": "mdx-9482",
+        "model_rtf": 0.030259340208622733,
+        "name": "UVR_MDXNET_9482.onnx",
+        "profile": "uvr-single-pass",
+        "rtf": 0.04968134386130965,
+        "settings": {
+          "attention_kernel": null,
+          "conv_strategy": "gemm",
+          "gemm_kernel": null,
+          "host_threads": null,
+          "linear_layout": null,
+          "tiles": [
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        "slowest_steady_call_seconds": 0.170662346,
+        "status": "ok",
+        "steady_call_seconds": 0.17036261,
+        "stems": [
+          {
+            "name": "all_vocals",
+            "origin": "predicted",
+            "peak": 1.1168572902679443,
+            "rms": 0.1824614346279637
+          },
+          {
+            "name": "instrumental",
+            "origin": "residual",
+            "peak": 1.2788869142532349,
+            "rms": 0.2474436974970335
+          }
+        ],
+        "timings": {
+          "decode_seconds": 0.609490282,
+          "istft_seconds": 0.9538996449999998,
+          "model_call_seconds": [
+            0.222888072,
+            0.170266821,
+            0.170359644,
+            0.170662346,
+            0.170352187,
+            0.170435028,
+            0.170340299,
+            0.170188582,
+            0.170387482,
+            0.170365773,
+            0.17037694,
+            0.169932687,
+            0.1705481,
+            0.170109374,
+            0.170487266,
+            0.170660689,
+            0.170112591,
+            0.170272329,
+            0.170311168,
+            0.170366008,
+            0.170558855,
+            0.170640558,
+            0.170638186,
+            0.170649345,
+            0.169966119,
+            0.170601286,
+            0.17041495,
+            0.170232214,
+            0.170424831,
+            0.170145524,
+            0.170038828,
+            0.170419509,
+            0.170047871,
+            0.170357192,
+            0.170649273,
+            0.170570811,
+            0.170163706,
+            0.169835367,
+            0.17021056,
+            0.170072038,
+            0.170377808,
+            0.170388045,
+            0.170599019,
+            0.17036261,
+            0.170137856,
+            0.170345426,
+            0.170208871,
+            0.170378949,
+            0.170236361
+          ],
+          "model_load_seconds": 0.224619662,
+          "model_seconds": 8.399095354,
+          "overlap_seconds": 0.41360694600000003,
+          "resample_seconds": 0.015198127,
+          "stft_seconds": 1.9075366029999998,
+          "total_seconds": 13.790067514,
+          "write_seconds": 0.355324968
+        },
+        "wall_seconds": 13.798805507
+      },
+      {
+        "audio_seconds": 277.5703401360544,
+        "chunks": 49,
+        "context": {
+          "chunk_samples": 261120,
+          "step_samples": 254976
+        },
+        "description": "MDX KARA: lead vocals, residual karaoke mix",
+        "device_memory_in_use_mib": 4592.125,
+        "family": "classic-mdx",
+        "first_call_seconds": 0.16984035,
+        "model_forwards": 49,
+        "model_id": "mdx-kara",
+        "model_rtf": 0.030012882518055124,
+        "name": "UVR_MDXNET_KARA.onnx",
+        "profile": "uvr-single-pass",
+        "rtf": 0.049602188433574716,
+        "settings": {
+          "attention_kernel": null,
+          "conv_strategy": "gemm",
+          "gemm_kernel": null,
+          "host_threads": null,
+          "linear_layout": null,
+          "tiles": [
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        "slowest_steady_call_seconds": 0.170627078,
+        "status": "ok",
+        "steady_call_seconds": 0.169967501,
+        "stems": [
+          {
+            "name": "lead_vocals",
+            "origin": "predicted",
+            "peak": 1.0859630107879639,
+            "rms": 0.17029025815391868
+          },
+          {
+            "name": "karaoke_mix",
+            "origin": "residual",
+            "peak": 1.3063288927078247,
+            "rms": 0.2554056679364924
+          }
+        ],
+        "timings": {
+          "decode_seconds": 0.611451428,
+          "istft_seconds": 0.9749141160000001,
+          "model_call_seconds": [
+            0.16984035,
+            0.170386969,
+            0.169902822,
+            0.170382099,
+            0.169933638,
+            0.17031984,
+            0.170233837,
+            0.170147332,
+            0.170107137,
+            0.169758963,
+            0.169760494,
+            0.169989567,
+            0.170395833,
+            0.169981786,
+            0.170063234,
+            0.169901266,
+            0.169865485,
+            0.169768615,
+            0.169733785,
+            0.169735699,
+            0.16987861,
+            0.170117938,
+            0.170627078,
+            0.170257646,
+            0.16973762,
+            0.16976299,
+            0.170134367,
+            0.170211014,
+            0.169956041,
+            0.170248116,
+            0.169709437,
+            0.170222679,
+            0.169959499,
+            0.169754661,
+            0.169747388,
+            0.169879765,
+            0.169967501,
+            0.169876156,
+            0.169870159,
+            0.170309619,
+            0.170026661,
+            0.170015786,
+            0.169699146,
+            0.170462651,
+            0.16987345,
+            0.169865296,
+            0.16975231,
+            0.170308639,
+            0.170245035
+          ],
+          "model_load_seconds": 0.22195949,
+          "model_seconds": 8.330686009000003,
+          "overlap_seconds": 0.4108143710000002,
+          "resample_seconds": 0.015447426,
+          "stft_seconds": 1.9317086509999999,
+          "total_seconds": 13.768096315,
+          "write_seconds": 0.351126084
+        },
+        "wall_seconds": 13.777646574
+      },
+      {
+        "audio_seconds": 277.5703401360544,
+        "chunks": 48,
+        "context": {
+          "chunk_samples": 261120,
+          "step_samples": 256000
+        },
+        "description": "MDX KARA 2: karaoke mix, residual lead vocals",
+        "device_memory_in_use_mib": 4592.125,
+        "family": "classic-mdx",
+        "first_call_seconds": 0.305212656,
+        "model_forwards": 48,
+        "model_id": "mdx-kara-2",
+        "model_rtf": 0.05277831533376106,
+        "name": "UVR_MDXNET_KARA_2.onnx",
+        "profile": "uvr-single-pass",
+        "rtf": 0.07152342268006344,
+        "settings": {
+          "attention_kernel": null,
+          "conv_strategy": "gemm",
+          "gemm_kernel": null,
+          "host_threads": null,
+          "linear_layout": null,
+          "tiles": [
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        "slowest_steady_call_seconds": 0.305839978,
+        "status": "ok",
+        "steady_call_seconds": 0.305200535,
+        "stems": [
+          {
+            "name": "karaoke_mix",
+            "origin": "predicted",
+            "peak": 1.3565738201141357,
+            "rms": 0.25453733362666614
+          },
+          {
+            "name": "lead_vocals",
+            "origin": "residual",
+            "peak": 1.1099605560302734,
+            "rms": 0.17434898480041577
+          }
+        ],
+        "timings": {
+          "decode_seconds": 0.62124813,
+          "istft_seconds": 0.835727087,
+          "model_call_seconds": [
+            0.305212656,
+            0.305454114,
+            0.305190141,
+            0.305132858,
+            0.305581878,
+            0.305149086,
+            0.305259088,
+            0.305523943,
+            0.305295722,
+            0.305356408,
+            0.305031697,
+            0.305097106,
+            0.305172759,
+            0.30521175,
+            0.305237694,
+            0.305356631,
+            0.305032423,
+            0.305133522,
+            0.305375328,
+            0.305400401,
+            0.3055096,
+            0.305434641,
+            0.305839978,
+            0.305360634,
+            0.305492587,
+            0.305067102,
+            0.305186417,
+            0.30483426,
+            0.304971701,
+            0.304993506,
+            0.30540982,
+            0.304933955,
+            0.305223383,
+            0.305173043,
+            0.305223844,
+            0.305265013,
+            0.30476957,
+            0.305200535,
+            0.304828842,
+            0.305380683,
+            0.305175703,
+            0.30528297,
+            0.304962704,
+            0.305287168,
+            0.30499085,
+            0.30486573,
+            0.304919381,
+            0.304906114
+          ],
+          "model_load_seconds": 0.405507304,
+          "model_seconds": 14.649694938999994,
+          "overlap_seconds": 0.4135780639999998,
+          "resample_seconds": 0.015568099,
+          "stft_seconds": 1.6279065720000003,
+          "total_seconds": 19.852780760999998,
+          "write_seconds": 0.353574759
+        },
+        "wall_seconds": 19.862880485
+      },
+      {
+        "audio_seconds": 277.5703401360544,
+        "chunks": 49,
+        "context": {
+          "chunk_samples": 261120,
+          "step_samples": 254976
+        },
+        "description": "MDX Inst HQ 2: instrumental, residual all vocals",
+        "device_memory_in_use_mib": 4594.125,
+        "family": "classic-mdx",
+        "first_call_seconds": 0.48287075,
+        "model_forwards": 49,
+        "model_id": "mdx-inst-hq-2",
+        "model_rtf": 0.0849897820942856,
+        "name": "UVR-MDX-NET-Inst_HQ_2.onnx",
+        "profile": "uvr-single-pass",
+        "rtf": 0.10703371366853386,
+        "settings": {
+          "attention_kernel": null,
+          "conv_strategy": "gemm",
+          "gemm_kernel": null,
+          "host_threads": null,
+          "linear_layout": null,
+          "tiles": [
+            null,
+            null,
+            null,
+            null
+          ]
+        },
+        "slowest_steady_call_seconds": 0.482130843,
+        "status": "ok",
+        "steady_call_seconds": 0.481387376,
+        "stems": [
+          {
+            "name": "instrumental",
+            "origin": "predicted",
+            "peak": 1.2993922233581543,
+            "rms": 0.2462578326618998
+          },
+          {
+            "name": "all_vocals",
+            "origin": "residual",
+            "peak": 1.181857705116272,
+            "rms": 0.183572224865576
+          }
+        ],
+        "timings": {
+          "decode_seconds": 0.623976042,
+          "istft_seconds": 1.145435915,
+          "model_call_seconds": [
+            0.48287075,
+            0.481496841,
+            0.481542017,
+            0.481073314,
+            0.481543803,
+            0.482004921,
+            0.482097834,
+            0.481704668,
+            0.481179192,
+            0.481760585,
+            0.480906989,
+            0.48130696,
+            0.48128963,
+            0.481190351,
+            0.481071852,
+            0.481079948,
+            0.481515375,
+            0.481306282,
+            0.481489068,
+            0.481507982,
+            0.482130843,
+            0.481486257,
+            0.481310013,
+            0.481503607,
+            0.481536271,
+            0.481387376,
+            0.481606732,
+            0.481469202,
+            0.481250494,
+            0.481322658,
+            0.481383848,
+            0.481986922,
+            0.481328815,
+            0.481547777,
+            0.481290645,
+            0.481139729,
+            0.481107542,
+            0.48110836,
+            0.481289446,
+            0.481450058,
+            0.48152612,
+            0.481688964,
+            0.480939042,
+            0.481156073,
+            0.481127541,
+            0.481482444,
+            0.481353127,
+            0.481203814,
+            0.481590642
+          ],
+          "model_load_seconds": 0.520453413,
+          "model_seconds": 23.590642724000006,
+          "overlap_seconds": 0.4087490180000001,
+          "resample_seconds": 0.015660139,
+          "stft_seconds": 2.1258229060000002,
+          "total_seconds": 29.709384309,
+          "write_seconds": 0.351845809
+        },
+        "wall_seconds": 29.718987509
+      }
+    ],
+    "process_peak_rss_mib": 2328.05859375,
+    "scope": "one process, models run serially on one backend with their native contexts and the backend defaults; timings from each run.json, wall time measured around the call",
+    "wall_seconds": 1189.491751683
+  }
+}

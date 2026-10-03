@@ -15,8 +15,11 @@ cargo clippy --workspace --all-targets --features convert --locked -- -D warning
 cargo test --workspace --features convert --locked
 cargo build --release --features convert,accelerate --locked # macOS
 PATH=/usr/local/cuda/bin:$PATH cargo build --release --features cuda --locked # Linux + NVIDIA
-# 仅在有 NVIDIA GPU 的机器上：硬件契约测试（合成模型 CUDA vs Flex、GEMM 卷积、显存分配失败可见）。
+# 仅在有 NVIDIA GPU 的机器上：硬件契约测试（合成模型 CUDA vs Flex、手写内核对 Burn 算子、GEMM 卷积、显存分配失败可见）。
 cargo test --release --locked --features cuda --test cuda_contracts --test cuda_device_failure
+# 手写内核的算子级正确性与速度（对照 Burn 路径）。
+cargo run --release -p ancha-models --features cuda --example fused_attention -- 90 1722
+cargo run --release -p ancha-models --features cuda --example fused_linear -- 154980
 ```
 
 CI 使用原创合成音频与微型权重，不下载真实权重或商业歌曲。GPU 编译检查不等于 GPU 执行测试；
@@ -87,6 +90,21 @@ target/release/ancha convert NO_TRACK/models/becruily_deux.ckpt \
 工作区无远端配置。提交前执行 `git check-ignore NO_TRACK/...` 和
 `git ls-files`，确认原始音频、参考工程、完整日志与权重未进入索引。
 
+### 2026-10-03 CUDA 回迁合入
+
+本地 `main` 从 `f55bfb1` 快进至交接仓库的 `d8ac0d2`，保留全部 22 个后续提交，另带回 4 份未提交文档。
+挂载盘产生的执行权限变化已过滤。原始文档补丁、CUDA 参考比对 / 整曲汇总及实验脚本备份位于
+`NO_TRACK/imports/cuda-transfer-20261003`，Git 继续排除 `NO_TRACK` / `NOTRACK`。
+
+macOS Intel 上通过 31 个测试、Clippy、仅 CPU 最小构建、默认后端与示例的 release 构建，
+以及固定 `CUDARC_CUDA_VERSION=12020` 的 CUDA 全目标编译检查。生产 CLI 的 CPU / WGPU 自检通过，
+CPU KARA 2（3 秒）、WGPU HyperACE inst（3 秒自定义上下文）、WGPU KARA 2（30 秒原生上下文）
+与固定 PyTorch / UVR 参考实现比对通过。详情见
+[cuda-integration-macos.json](reports/cuda-integration-macos.json)。
+
+本地没有 NVIDIA GPU，CUDA 硬件契约与推理未在本次合入中执行；远端第二轮的 8/8 比对与 8 模型整曲结果
+见 [cuda-kernels.json](reports/cuda-kernels.json)，第一轮记录仍保留在原报告中。
+
 ## HyperACE / MDX 新流程
 
 完整功能和 CPU 优化构建：
@@ -98,10 +116,10 @@ cargo test --workspace --locked --features convert,accelerate
 ```
 
 跨平台 CI 使用默认 feature 加 `convert`；macOS 才添加 accelerate。
-29 个合成测试覆盖空间 InstanceNorm、half-pixel resize、频率 shuffle、HyperACE preset、
+31 个合成测试覆盖空间 InstanceNorm、half-pixel resize、频率 shuffle、HyperACE preset、
 ONNX 调度/BN folding/拒绝规则、GEMM 卷积与后端卷积一致、batch 轴和 MDX DSP / 取消保护；
 微型 RoFormer 的非相邻同宽频带、非单位 gamma，在 NdArray 与 Flex、手动与自动分块、
-单线程与分组并行之间保持波形一致。测试不读取真实权重。
+单线程与分组并行之间保持波形一致；新增权重摘要不匹配与设备线程故障的拒绝测试。测试不读取真实权重。
 独立真实模型验证、下载、MDX 同二进制消融和批量设置见 [适配文档](adapters.md)。
 Flex CPU 的卷积/矩阵乘走 Rayon，可在启动前设置 `RAYON_NUM_THREADS`；RoFormer 另有
 `--host-threads` 控制分组 worker。旧 NdArray 测量建议同时设 `VECLIB_MAXIMUM_THREADS=1`，
