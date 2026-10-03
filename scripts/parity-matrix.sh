@@ -8,8 +8,10 @@ BIN="${ANCHA_BINARY:-target/release/ancha}"
 BACKENDS="${ANCHA_BACKENDS:-cuda}"
 PY="${ANCHA_PYTHON:-NO_TRACK/.venv-parity/bin/python}"
 C3="${ANCHA_CLIP_3S:-NO_TRACK/runs/clip-3s.wav}"
+if [[ ! -f "$C3" && -z "${ANCHA_CLIP_3S+x}" ]]; then C3=outputs/clip-3s.wav; fi
 OUT="${ANCHA_PARITY_DIR:-NO_TRACK/runs/parity-matrix}"
-M=NO_TRACK/models
+M="${ANCHA_MODELS:-models}"
+if [[ ! -d "$M" && -z "${ANCHA_MODELS+x}" ]]; then M=NO_TRACK/models; fi
 H=NO_TRACK/reference/hyperace/bs_roformer.py
 mkdir -p "$OUT"
 summary() { # report label
@@ -44,10 +46,10 @@ mdx() { # model backend
   summary "$run-parity.json" "$name-$2"
 }
 for b in $BACKENDS; do
-  roformer leap $M/leap-xe-voc $M/bs_leap_xe_voc.ckpt "$b"
-  roformer deux $M/deux $M/becruily_deux.ckpt "$b"
-  roformer hace-voc $M/hyperace-v2-voc $M/hyperace-v2-voc.ckpt "$b" --hyperace-source $H
-  roformer hace-inst $M/hyperace-v2-inst $M/hyperace-v2-inst.ckpt "$b" --hyperace-source $H
+  roformer leap "$M/leap-xe-voc" "$M/bs_leap_xe_voc.ckpt" "$b"
+  roformer deux "$M/deux" "$M/becruily_deux.ckpt" "$b"
+  roformer hace-voc "$M/hyperace-v2-voc" "$M/hyperace-v2-voc.ckpt" "$b" --hyperace-source "$H"
+  roformer hace-inst "$M/hyperace-v2-inst" "$M/hyperace-v2-inst.ckpt" "$b" --hyperace-source "$H"
   for m in UVR_MDXNET_9482 UVR_MDXNET_KARA UVR_MDXNET_KARA_2 UVR-MDX-NET-Inst_HQ_2; do
     mdx "$M/$m.onnx" "$b"
   done

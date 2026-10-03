@@ -5,8 +5,11 @@
 .venv/
 __pycache__/
 *.pyc
-/models/
-/outputs/
+/models
+/audio
+/outputs
+/ancha-github-*/
+*.bundle
 *.ckpt
 *.pt
 *.pth

@@ -23,7 +23,8 @@ macOS 可使用 `cargo build --release --locked --features convert,accelerate`�
 
 ## 快速开始
 
-歌曲用仓库里的 `audio/ReoNa - Amore.mp3`。每条命令把结果写到 `outputs/` 下对应的目录，再跑一次会换上新结果。只要试听 30 秒，在命令末尾加上 `--start 30 --duration 30`。
+先把自己的歌曲放到 `audio/`，下面以 `audio/ReoNa - Amore.mp3` 为例。模型和歌曲由用户准备，不随源码分发。
+每条命令把结果写到 `outputs/` 下对应的目录，再跑一次会换上新结果。只要试听 30 秒，在命令末尾加上 `--start 30 --duration 30`。
 
 ```bash
 # Leap Xe：人声，残差为伴奏

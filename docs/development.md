@@ -56,6 +56,7 @@ uv pip install --python NO_TRACK/.venv-parity/bin/python -r scripts/requirements
 bash scripts/fetch-reference.sh
 
 # 使用同一 float32 WAV；132300 samples = 3 秒 @44.1 kHz。
+mkdir -p outputs
 ffmpeg -ss 30 -i 'audio/ReoNa - Amore.mp3' \
   -t 3 -ac 2 -ar 44100 -c:a pcm_f32le outputs/clip-3s.wav
 target/release/ancha separate outputs/clip-3s.wav \
@@ -77,6 +78,9 @@ PyTorch 2.2.2 是 Intel macOS 的实际验证版本；Linux 上使用同版本�
 ```bash
 ANCHA_BACKENDS="cuda wgpu cpu" bash scripts/parity-matrix.sh
 ```
+
+比对脚本默认使用 `models/`，也兼容旧迁移包的 `NO_TRACK/models/`；可用 `ANCHA_MODELS` 指定。
+固定片段优先使用 `NO_TRACK/runs/clip-3s.wav`，不存在时使用上述 `outputs/clip-3s.wav`；可用 `ANCHA_CLIP_3S` 指定。
 
 Mel Karaoke / MDX23C 使用 `scripts/parity-derur.sh`，不放进上面的八模型矩阵。下载、参考环境、合成测试和速度消融见 [Derur 适配文档](derur-adapters.md)。2026-10-03 已在 Tesla P4 上跑过这两个模型的 CUDA 比对，以及 HyperACE 两个头（确认共享的 InstanceNorm）。整曲命令和一次计时见[使用说明](usage.md#整曲示例)。
 
@@ -105,7 +109,7 @@ target/release/ancha convert models/becruily_deux.ckpt \
 大的 tile 增加 scores 工作内存；本机原生 Leap 块在 512 / 16 下约 430.5 MiB，128 / 4 约 26.9 MiB。
 这些是张量尺寸推导值，不是 profiler 测得的总显存峰值。
 
-工作区无远端配置。提交前执行 `git check-ignore NO_TRACK/...` 和
+提交前执行 `git check-ignore NO_TRACK/...` 和
 `git ls-files`，确认原始音频、参考工程、完整日志与权重未进入索引。
 
 ### 2026-10-03 CUDA 回迁与 P4 验收
@@ -159,8 +163,8 @@ Flex CPU 的卷积/矩阵乘走 Rayon，可在启动前设置 `RAYON_NUM_THREADS
 `scripts/package-cuda-transfer.py` 生成源码 / 资产两包并逐文件验证，`scripts/cuda-dev.sh` 提供构建与测试步骤。
 
 迁移包分为源码与资产两部分。源码包含 `.git`、文档、脚本和 NO_TRACK 中的参考代码与实验记录；
-资产包含 `models/`（checkpoint、已转换模型包、四个 ONNX）、`audio/`
-以及基准使用的 3 秒和 30 秒 float32 WAV。不迁移 `target`、
+打包脚本保留原有资产布局：`NO_TRACK/models/`（checkpoint、已转换模型包、四个 ONNX）、`NO_TRACK/test_file/`
+以及 `NO_TRACK/runs/` 中的固定 3 秒和 30 秒 float32 WAV。日常 CLI 的 `models/` / `audio/` 可作为它们的本地别名。不迁移 `target`、
 `NO_TRACK/.venv-parity`（在新机器按 requirements 重建）、macOS 二进制、本机运行产物和 autotune
 缓存；autotune 结果与 GPU、驱动和 CubeCL 版本绑定，新机器首次运行会重新调优。
 

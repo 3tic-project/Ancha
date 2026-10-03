@@ -127,6 +127,9 @@ pub fn linear<B: Backend>(
     }
     #[cfg(feature = "cuda")]
     {
+        if !available::<B>() {
+            return None;
+        }
         let column_pad = (128 - m % 128) % 128;
         let padded;
         let weight = if column_pad == 0 {

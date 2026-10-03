@@ -375,16 +375,24 @@ pub(crate) fn publish_directory(stage: &Path, dest: &Path) -> Result<()> {
         .filter(|path| !path.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     let name = dest.file_name().unwrap_or_default().to_string_lossy();
-    let previous = parent.join(format!(".{name}.previous"));
-    if previous.exists() {
-        std::fs::remove_dir_all(&previous)?;
-    }
+    let backup = tempfile::Builder::new()
+        .prefix(&format!(".{name}.previous-"))
+        .tempdir_in(parent)
+        .context("create output backup directory")?;
+    let previous = backup.path().join("result");
     std::fs::rename(dest, &previous).context("move previous output aside")?;
     if let Err(error) = std::fs::rename(stage, dest) {
-        let _ = std::fs::rename(&previous, dest);
+        if let Err(rollback) = std::fs::rename(&previous, dest) {
+            // Retain the previous result if another writer prevents rollback.
+            let kept = backup.keep();
+            return Err(error).context(format!(
+                "publish separation outputs; restoring previous output failed: {rollback}; backup retained at {}",
+                kept.display()
+            ));
+        }
         return Err(error).context("publish separation outputs");
     }
-    std::fs::remove_dir_all(previous)?;
+    // A cleanup failure must not report a successfully published result as a failed inference.
     Ok(())
 }
 
@@ -421,4 +429,46 @@ fn reconstruction_error(input: &Audio, prediction: &Audio, residual: &Audio) -> 
         .zip(residual.planes.iter().flatten())
         .map(|((x, y), r)| (x - (y + r)).abs())
         .fold(0f32, f32::max)
+}
+
+#[cfg(test)]
+mod publication_tests {
+    use super::publish_directory;
+
+    #[test]
+    fn replacement_preserves_unrelated_previous_directory() {
+        let root = tempfile::tempdir().unwrap();
+        let output = root.path().join("output");
+        let stage = root.path().join("stage");
+        let unrelated = root.path().join(".output.previous");
+        for dir in [&output, &stage, &unrelated] {
+            std::fs::create_dir(dir).unwrap();
+        }
+        std::fs::write(output.join("old.wav"), b"previous result").unwrap();
+        std::fs::write(stage.join("vocals.wav"), b"new result").unwrap();
+        std::fs::write(unrelated.join("notes.txt"), b"unrelated data").unwrap();
+        publish_directory(&stage, &output).unwrap();
+        assert_eq!(
+            std::fs::read(output.join("vocals.wav")).unwrap(),
+            b"new result"
+        );
+        assert!(!output.join("old.wav").exists());
+        assert_eq!(
+            std::fs::read(unrelated.join("notes.txt")).unwrap(),
+            b"unrelated data"
+        );
+    }
+
+    #[test]
+    fn failed_publication_restores_existing_result() {
+        let root = tempfile::tempdir().unwrap();
+        let output = root.path().join("output");
+        std::fs::create_dir(&output).unwrap();
+        std::fs::write(output.join("vocals.wav"), b"previous result").unwrap();
+        assert!(publish_directory(&root.path().join("missing-stage"), &output).is_err());
+        assert_eq!(
+            std::fs::read(output.join("vocals.wav")).unwrap(),
+            b"previous result"
+        );
+    }
 }

@@ -5,7 +5,7 @@ Ancha 把一首歌分成若干条 float32 WAV。运行时只需要编好的 `anc
 | 位置 | 内容 |
 |---|---|
 | `models/` | 转换好的模型包、四个 ONNX，以及下载下来的原始 checkpoint |
-| `audio/` | 示例歌曲 `ReoNa - Amore.mp3` |
+| `audio/` | 用户自行准备的歌曲；命令以 `ReoNa - Amore.mp3` 为例，文件不随源码分发 |
 | `outputs/` | 分离结果。每个任务一个子目录，里面是 WAV 和 `run.json` |
 
 ## 环境

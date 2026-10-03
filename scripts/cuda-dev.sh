@@ -51,7 +51,11 @@ PY
     echo "Reports: $out"
     ;;
   smoke)
-    target/release/examples/separate_all --backend cuda --start 30 --duration 30
+    models="${ANCHA_MODELS:-models}"
+    if [[ ! -d "$models" && -z "${ANCHA_MODELS+x}" ]]; then models=NO_TRACK/models; fi
+    input="${ANCHA_INPUT:-audio/ReoNa - Amore.mp3}"
+    if [[ ! -f "$input" && -z "${ANCHA_INPUT+x}" ]]; then input='NO_TRACK/test_file/ReoNa - Amore.mp3'; fi
+    target/release/examples/separate_all --backend cuda --models "$models" --input "$input" --start 30 --duration 30
     ;;
   help|--help|-h)
     echo 'Usage: bash scripts/cuda-dev.sh build|reference|test|parity|smoke'
