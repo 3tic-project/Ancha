@@ -13,6 +13,9 @@
 #   the P4 (sm_61) the first CUDA run fills `ptx-sm61/...` in the kernel cache.
 #   CI runners have no GPU, so the workflow asserts the graceful no-driver
 #   failure path (exit code 2, no panic) instead of running CUDA kernels.
+# - WGPU runtime workloads are not exercised in CI: GitHub macOS runners have
+#   no usable Metal adapter (see the note in the steps). The wgpu feature is
+#   still compiled and linked into every binary.
 name: Build binaries
 
 on:
@@ -106,7 +109,7 @@ jobs:
           "$BIN" doctor --backend cpu
           if [ "$RUNNER_OS" = "macOS" ]; then "$BIN" doctor --backend ndarray; fi
 
-      - name: "Smoke: CUDA without a driver exits 2 and does not panic"
+      - name: "Smoke: CUDA without a driver exits 2 through the handled path"
         if: startsWith(matrix.features, 'cuda')
         run: |
           set -euo pipefail
@@ -116,7 +119,11 @@ jobs:
           set -e
           cat cuda-no-driver.log
           if [ "$code" -ne 2 ]; then echo "expected exit code 2, got $code"; exit 1; fi
-          if grep -qi "panic" cuda-no-driver.log; then echo "panic detected"; exit 1; fi
+          # cudarc's loader prints a caught panic message before `cuda::probe`
+          # maps it to an error; the last line must be the handled error line.
+          if ! tail -n 1 cuda-no-driver.log | grep -q "^ancha: CUDA driver library"; then
+            echo "unexpected failure mode: handled exit path not reached"; exit 1
+          fi
           echo "ok: CUDA probe failed gracefully with exit 2"
 
       - name: "End-to-end: separate a 3 s synthetic clip on CPU"
@@ -156,15 +163,11 @@ jobs:
           test -f ci-out/mdx-9482-cpu/run.json
           head -c 400 ci-out/mdx-9482-cpu/run.json; echo
 
-      - name: "Smoke: WGPU doctor and separation (macOS Metal)"
-        if: runner.os == 'macOS'
-        run: |
-          set -euo pipefail
-          "$BIN" doctor --backend wgpu --device 0
-          "$BIN" separate ci-out/clip.wav --model models/UVR_MDXNET_9482.onnx --backend wgpu --device 0 --output ci-out/mdx-9482-wgpu
-          ls -l ci-out/mdx-9482-wgpu
-          test -f ci-out/mdx-9482-wgpu/vocals.wav
-          test -f ci-out/mdx-9482-wgpu/run.json
+      # WGPU runtime workloads are not exercised on GitHub-hosted macOS runners:
+      # macos-15 (arm64) exposes zero wgpu adapters (CubeCL device-thread panic),
+      # and on macos-15-intel the 2x2 matmul passes but the MDX kernels never
+      # complete (the step hung >50 min). The wgpu feature stays compile/link
+      # checked by the build; runtime GPU coverage needs a self-hosted runner.
 
       - name: "Linux compatibility: glibc baseline and Rocky Linux 9 run"
         if: runner.os == 'Linux'
